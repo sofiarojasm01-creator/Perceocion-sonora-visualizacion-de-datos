@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entre lo que suena y lo que sentimos — Paisaje Sonoro Barrio Puerto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="assets/data/data.js" defer></script>
+  <script src="js/script.js" defer></script>
+</head>
+
+<body>
+  <div class="app-container">
+
+    <!-- BARRA SUPERIOR MINIMALISTA -->
+    <header class="top-header">
+      <div class="brand-block">
+        <h1 class="brand-title">«Entre lo que suena y lo que sentimos»</h1>
+        <span class="brand-subtitle">Barrio Puerto • Valparaíso</span>
+      </div>
+
+      <!-- Leyenda de Categorías Sonoras -->
+      <nav class="top-categories-legend" aria-label="Categorías sonoras">
+        <div class="cat-legend-item active" data-category="transito" title="Activar/Desactivar Tránsito">
+          <span class="cat-color-dot" style="background-color: var(--color-transito);"></span>
+          <span>Tránsito (Morado)</span>
+        </div>
+        <div class="cat-legend-item active" data-category="personas" title="Activar/Desactivar Personas">
+          <span class="cat-color-dot" style="background-color: var(--color-personas);"></span>
+          <span>Personas (Amarillo Mostaza)</span>
+        </div>
+        <div class="cat-legend-item active" data-category="maquinarias" title="Activar/Desactivar Maquinarias">
+          <span class="cat-color-dot" style="background-color: var(--color-maquinarias);"></span>
+          <span>Maquinarias (Rosado)</span>
+        </div>
+        <div class="cat-legend-item active" data-category="naturaleza" title="Activar/Desactivar Naturaleza">
+          <span class="cat-color-dot" style="background-color: var(--color-naturaleza);"></span>
+          <span>Naturaleza (Cian)</span>
+        </div>
+      </nav>
+
+      <div class="top-actions">
+        <button id="btn-toggle-journey" class="btn-toggle-journey" title="Ver todo el recorrido completo del día">Ver todo el recorrido</button>
+        <a href="about.html" class="btn-about-link">Acerca del proyecto →</a>
+      </div>
+    </header>
+
+    <!-- LIENZO BLANCO CENTRAL: ONDAS DE ACUARELA Y NODOS -->
+    <main class="watercolor-stage" id="stage-container">
+      <canvas id="watercolor-canvas"></canvas>
+
+      <!-- Referencias del Eje Central -->
+      <aside class="axis-reference-labels" aria-hidden="true">
+        <div class="axis-ref-top">
+          <span>▲ ARRIBA</span>
+          <strong>Percepción</strong>
+          <span style="font-size: 0.62rem; color: var(--color-transito);">Tránsito • Alta / Media / Baja</span>
+        </div>
+        <div class="axis-ref-mid">LÍNEA BASE (09:40 — 18:50)</div>
+        <div class="axis-ref-bottom">
+          <span>▼ ABAJO</span>
+          <strong>Decibeles Medidos</strong>
+          <span style="font-size: 0.62rem; color: var(--color-decibel);">Nivel Sonoro (dB Leq)</span>
+        </div>
+      </aside>
+
+      <!-- Tooltip Flotante al pasar el cursor sobre los Nodos -->
+      <article class="node-tooltip-card" id="node-tooltip" role="tooltip" aria-hidden="true">
+        <div class="tooltip-header">
+          <span class="tooltip-time" id="tooltip-time">10:35 hrs</span>
+          <span class="tooltip-sector" id="tooltip-sector">Muelle Prat</span>
+        </div>
+
+        <div class="tooltip-category-tag" id="tooltip-category-tag">
+          <span class="cat-color-dot" id="tooltip-cat-dot"></span>
+          <span id="tooltip-cat-name">Tránsito</span>
+        </div>
+
+        <div class="tooltip-intensity-stat" id="tooltip-intensity-box">
+          Intensidad: <strong id="tooltip-intensity-level">Alta (95 mm)</strong><br>
+          <span id="tooltip-percentage-text">46.9% de las personas registraron este nivel</span>
+        </div>
+
+        <p class="tooltip-quote" id="tooltip-quote">
+          «Tránsito vehicular y lanchas de fondo...»
+        </p>
+
+        <div class="tooltip-db-compare">
+          <span>Onda de Decibeles abajo:</span>
+          <strong id="tooltip-db-val">71.4 dB (Leq)</strong>
+        </div>
+      </article>
+    </main>
+
+    <!-- SLIDER INFERIOR DE TIEMPO INTERACTIVO -->
+    <footer class="timeline-slider-dock" aria-label="Control temporal de la visualización">
+      
+      <div class="slider-meta-controls">
+        <div class="slider-play-group">
+          <button id="btn-play-pause" class="btn-play-pause" aria-label="Reproducir línea temporal" title="Reproducir / Pausar">
+            <svg id="play-icon" class="btn-play-icon" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <svg id="pause-icon" class="btn-play-icon" viewBox="0 0 24 24" style="display: none;">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+          </button>
+          <span class="current-time-readout" id="current-time-text">09:40 hrs</span>
+        </div>
+
+        <!-- Chips de Acceso a Momentos Clave del Día -->
+        <div class="moments-chips" role="group" aria-label="Seleccionar franja horaria">
+          <button class="moment-chip" data-time-target="09:40">1. Mañana (09:40)</button>
+          <button class="moment-chip" data-time-target="13:50">2. Tarde (13:50)</button>
+          <button class="moment-chip" data-time-target="17:10">3. Hora Punta (17:10)</button>
+        </div>
+      </div>
+
+      <!-- Barra Deslizadora (Slider) -->
+      <div class="slider-track-container">
+        <input 
+          type="range" 
+          id="time-slider" 
+          class="time-range-slider" 
+          min="570" 
+          max="1130" 
+          step="2" 
+          value="580" 
+          aria-label="Deslizar horario del paisaje sonoro"
+        >
+
+        <div class="slider-time-ticks">
+          <span class="tick-mark" data-val="580">09:40</span>
+          <span class="tick-mark" data-val="600">10:00</span>
+          <span class="tick-mark" data-val="660">11:00</span>
+          <span class="tick-mark" data-val="720">12:00</span>
+          <span class="tick-mark" data-val="780">13:00</span>
+          <span class="tick-mark" data-val="840">14:00</span>
+          <span class="tick-mark" data-val="900">15:00</span>
+          <span class="tick-mark" data-val="960">16:00</span>
+          <span class="tick-mark" data-val="1020">17:00</span>
+          <span class="tick-mark" data-val="1080">18:00</span>
+          <span class="tick-mark" data-val="1130">18:50</span>
+        </div>
+      </div>
+
+    </footer>
+
+  </div>
+</body>
+</html>

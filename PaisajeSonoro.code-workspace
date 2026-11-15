@@ -1,0 +1,20 @@
+{
+  "folders": [
+    {
+      "name": "Paisaje Sonoro — Barrio Puerto",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "liveServer.settings.defaultBrowser": "",
+    "liveServer.settings.root": "/",
+    "liveServer.settings.port": 5500,
+    "files.autoSave": "afterDelay",
+    "editor.tabSize": 2
+  },
+  "extensions": {
+    "recommendations": [
+      "ritwickdey.liveserver"
+    ]
+  }
+}
