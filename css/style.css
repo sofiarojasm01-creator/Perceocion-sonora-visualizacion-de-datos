@@ -215,7 +215,7 @@ h1, h2, h3, h4, h5, h6 {
   cursor: crosshair;
 }
 
-/* Guías de Referencia Lateral */
+/* Guías de Referencia Lateral (Textos completamente negros) */
 .axis-reference-labels {
   position: absolute;
   left: 2rem;
@@ -230,38 +230,47 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text-light);
+  color: #0F172A;
 }
 
 .axis-ref-top {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
+  color: #0F172A;
+}
+
+.axis-ref-top span,
+.axis-ref-top strong {
+  color: #0F172A;
 }
 
 .axis-ref-top strong {
-  color: var(--color-transito);
-}
-
-.axis-ref-mid {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-weight: 800;
+  font-size: 0.78rem;
 }
 
 .axis-ref-bottom {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
+  color: #0F172A;
+}
+
+.axis-ref-bottom span,
+.axis-ref-bottom strong {
+  color: #0F172A;
 }
 
 .axis-ref-bottom strong {
-  color: var(--color-decibel);
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+
+.axis-sub-label {
+  font-size: 0.62rem;
+  color: #0F172A;
+  opacity: 0.75;
 }
 
 /* ==========================================================================

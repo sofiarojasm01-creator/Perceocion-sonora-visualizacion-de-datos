@@ -378,73 +378,92 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // GENERADOR DE ONDAS FLUIDAS CONTINUAS (Interpolar suavemente como ondas)
+  // GENERADOR DE ONDAS FLUIDAS CONTINUAS Y NODOS EMBEBIDOS
+  // (Las ondas siguen los nodos, suben a sus crestas y los envuelven sin que
+  //  ningún nodo quede por encima de la onda)
   // =========================================================================
   function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, limitMinute, limitX, phase, catIdx) {
     const colorHex = getCategoryColor(cat);
     const rgb = hexToRgb(colorHex);
 
-    // Tránsito se mantiene arriba (Morado), Personas (Mostaza) fluye en el espacio medio-alto
+    // Separación vertical de las líneas base según categoría sonora
+    // Tránsito fluye arriba (Morado), Personas en la franja media-alta (Amarillo Mostaza)
     const catBaseOffsets = {
-      transito: -50,
-      personas: -30,
-      maquinarias: -18,
-      naturaleza: -8
+      transito: -42,
+      personas: -24,
+      maquinarias: -14,
+      naturaleza: -4
     };
-    const baseOffset = catBaseOffsets[cat] || -25;
+    const baseOffset = catBaseOffsets[cat] || -20;
 
-    // Número de filamentos finos
-    const numStrands = 34;
-    const numSamples = 95;
+    // 36 filamentos finos como seda líquida
+    const numStrands = 36;
+    const numSamples = 160; // Alta densidad de muestreo para máxima fluidez
 
-    // Interpolación gaussiana hiper-fluida: elimina todo escalón y crea curvas continuas
+    // 1. Función unificada de envolvente que calcula la cresta y el grosor del listón
     function getFluidEnvelope(minute) {
+      let maxWeight = 0;
       let totalW = 0;
       let accumElev = 0;
       let accumWidth = 0;
-      const sigma = 38; // Amplitud de difusión suave
+      const sigma = 34; // Dispersión orgánica de onda
 
       for (const r of records) {
         const diff = minute - r.minute;
         const w = Math.exp(-(diff * diff) / (2 * sigma * sigma));
         totalW += w;
+        if (w > maxWeight) maxWeight = w;
 
-        let elev = 35;
-        let bandW = 20;
+        // Elevación según percepción registrada (Alta: 155px, Media: 85px, Baja: 38px)
+        let elev = 38;
+        let bandW = 34;
         if (r.calibre === 95) {
-          elev = 175; // Alta = onda grande
-          bandW = 75;
+          elev = 155; // Alta = onda grande
+          bandW = 76;
         } else if (r.calibre === 70) {
-          elev = 90;  // Media = sube un poco
-          bandW = 42;
+          elev = 85;  // Media = sube un poco
+          bandW = 50;
         } else {
-          elev = 35;  // Baja = cerca del medio
-          bandW = 20;
+          elev = 38;  // Baja = se mantiene cerca del medio
+          bandW = 34;
         }
 
         accumElev += elev * w;
         accumWidth += bandW * w;
       }
 
-      if (totalW < 0.04) {
-        return { elevation: 25, width: 15 };
+      if (totalW < 0.001) {
+        return { elevation: 22, width: 24, maxWeight: 0 };
       }
 
-      const blendFactor = Math.min(1, totalW * 1.8);
-      return {
-        elevation: (accumElev / totalW) * blendFactor + 25 * (1 - blendFactor),
-        width: Math.max(15, accumWidth / totalW)
-      };
+      const avgElev = accumElev / totalW;
+      const avgWidth = accumWidth / totalW;
+
+      // Fuera de los momentos observados, la onda descansa suavemente en un curso calmo
+      const blend = Math.min(1, maxWeight * 1.6);
+      const elevation = avgElev * blend + 22 * (1 - blend);
+      const width = Math.max(26, avgWidth * blend + 24 * (1 - blend));
+
+      return { elevation, width, maxWeight };
     }
 
+    // 2. Función unificada para calcular la posición exacta del espinazo central de la onda
+    function getSpineAt(normT, minute, strandPhaseOffset = 0) {
+      const env = getFluidEnvelope(minute);
+      // Ondulación armónica líquida continua
+      const harmonicMotion = Math.sin(normT * 12 - phase * 1.1 + catIdx * 1.3 + strandPhaseOffset) * 10 +
+                             Math.cos(normT * 24 + strandPhaseOffset * 0.6) * 5;
+      const spineY = midY + baseOffset - env.elevation + harmonicMotion;
+      return { spineY, env };
+    }
+
+    // 3. Dibujar todos los filamentos de seda que componen la onda fluida
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
 
-    // Dibujar cada filamento como una onda sinusoidal fluida continua
     for (let s = 0; s < numStrands; s++) {
-      const strandNorm = (s / (numStrands - 1)) - 0.5; // [-0.5, 0.5]
-      const strandFreq = 0.016 + (s % 3) * 0.003;
-      const strandPhase = s * 0.18 + phase * 0.8 + catIdx * 1.4;
+      const strandNorm = (s / (numStrands - 1)) - 0.5; // [-0.5 (arriba), +0.5 (abajo)]
+      const strandPhase = s * 0.16 + phase * 0.7 + catIdx * 1.2;
 
       ctx.beginPath();
       let isFirst = true;
@@ -455,24 +474,21 @@ document.addEventListener("DOMContentLoaded", () => {
         if (minute > limitMinute) break;
 
         const x = padX + tNorm * usableW;
-        const env = getFluidEnvelope(minute);
+        const { spineY, env } = getSpineAt(tNorm, minute, strandPhase);
 
-        // Ondulación armónica de onda viajera líquida (seno + coseno compuestos)
-        const fluidWave = Math.sin(tNorm * 14 - phase * 1.2 + strandPhase) * 14 +
-                          Math.cos(tNorm * 26 + strandPhase * 0.7) * 7;
-
-        const spineY = midY + baseOffset - env.elevation;
-        const y = spineY + (strandNorm * env.width) + fluidWave;
+        // Cada filamento se ubica dentro del ancho del listón
+        const strandY = spineY + (strandNorm * env.width);
 
         if (isFirst) {
-          ctx.moveTo(x, y);
+          ctx.moveTo(x, strandY);
           isFirst = false;
         } else {
-          ctx.lineTo(x, y);
+          ctx.lineTo(x, strandY);
         }
       }
 
-      const alpha = 0.18 + (1 - Math.abs(strandNorm * 2)) * 0.22;
+      // Transparencia gradual estilo veladura de acuarela
+      const alpha = 0.13 + (1 - Math.abs(strandNorm * 2)) * 0.22;
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
       ctx.lineWidth = 0.85;
       ctx.stroke();
@@ -480,28 +496,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.restore();
 
-    // DIBUJAR LOS NODOS EN LAS CRESTAS
+    // 4. DIBUJAR LOS NODOS EN LAS CRESTAS
+    // Los nodos se ubican en el centro exacto del espinazo de la onda (spineY),
+    // garantizando que las hebras superiores del listón pasen SIEMPRE por encima de ellos
+    // y que la onda siga milimétricamente cada nodo sin que queden flotando arriba.
     records.forEach(rec => {
       if (rec.minute > limitMinute) return;
 
       const normT = (rec.minute - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
 
-      let elevation = 35;
+      // Calcular el espinazo usando exactamente la misma función de la onda
+      const { spineY } = getSpineAt(normT, rec.minute, 0);
+
       let intensityLevel = "Baja";
       let nodeR = 6;
-
       if (rec.calibre === 95) {
-        elevation = 175; // Alta
         intensityLevel = "Alta";
-        nodeR = 10;
+        nodeR = 9.5;
       } else if (rec.calibre === 70) {
-        elevation = 90;  // Media
         intensityLevel = "Media";
-        nodeR = 8;
+        nodeR = 7.5;
       }
 
-      const spineY = midY + baseOffset - elevation;
       const isHovered = state.hoveredNode && state.hoveredNode.data === rec.data;
       const isCurrent = Math.abs(rec.minute - state.currentMinute) <= 12;
 
@@ -526,8 +543,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!PROJECT_DATA) return;
     const records = PROJECT_DATA.fichas_campo;
 
-    const numStrands = 28;
-    const numSamples = 90;
+    const numStrands = 32;
+    const numSamples = 160;
     const rgb = { r: 249, g: 115, b: 22 }; // Naranja Acústico
 
     function getFluidDbDepth(minute) {
@@ -555,7 +572,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     for (let s = 0; s < numStrands; s++) {
       const strandNorm = (s / (numStrands - 1)) - 0.5;
-      const strandPhase = s * 0.2 + phase * 0.7;
+      const strandPhase = s * 0.18 + phase * 0.7;
 
       ctx.beginPath();
       let isFirst = true;
@@ -583,6 +600,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.16)`;
       ctx.lineWidth = 0.85;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
       ctx.stroke();
     }
 
