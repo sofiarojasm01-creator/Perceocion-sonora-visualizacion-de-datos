@@ -65,31 +65,59 @@
         </div>
       </aside>
 
-      <!-- Tooltip Flotante al pasar el cursor sobre los Nodos -->
+      <!-- Tooltip Flotante al pasar el cursor sobre los Nodos (Ficha de Datos Completa) -->
       <article class="node-tooltip-card" id="node-tooltip" role="tooltip" aria-hidden="true">
-        <div class="tooltip-header">
-          <span class="tooltip-time" id="tooltip-time">10:35 hrs</span>
+        <header class="tooltip-header">
+          <div class="tooltip-header-left">
+            <span class="tooltip-id-badge" id="tooltip-id-badge">BP-01</span>
+            <span class="tooltip-time" id="tooltip-time">10:35 hrs</span>
+          </div>
           <span class="tooltip-sector" id="tooltip-sector">Muelle Prat</span>
+        </header>
+
+        <div class="tooltip-category-row">
+          <div class="tooltip-category-tag" id="tooltip-category-tag">
+            <span class="cat-color-dot" id="tooltip-cat-dot"></span>
+            <span id="tooltip-cat-name">Tránsito</span>
+          </div>
+          <span class="tooltip-secondary-tag" id="tooltip-secondary-tag" style="display: none;"></span>
         </div>
 
-        <div class="tooltip-category-tag" id="tooltip-category-tag">
-          <span class="cat-color-dot" id="tooltip-cat-dot"></span>
-          <span id="tooltip-cat-name">Tránsito</span>
+        <div class="tooltip-source-box" id="tooltip-source-box">
+          <span class="tooltip-meta-title">Fuente Sonora Registrada:</span>
+          <p class="tooltip-fuente-name" id="tooltip-fuente-name">Paso de micros y camiones</p>
         </div>
 
         <div class="tooltip-intensity-stat" id="tooltip-intensity-box">
-          Intensidad: <strong id="tooltip-intensity-level">Alta (95 mm)</strong><br>
-          <span id="tooltip-percentage-text">46.9% de las personas registraron este nivel</span>
+          <div class="tooltip-intensity-main">
+            <span class="tooltip-meta-title">Intensidad Percibida:</span>
+            <strong id="tooltip-intensity-level">Alta (Gran Calibre, 95 mm)</strong>
+          </div>
+          <span class="tooltip-percentage-text" id="tooltip-percentage-text">46.9% de las personas registraron este nivel</span>
         </div>
 
-        <p class="tooltip-quote" id="tooltip-quote">
+        <blockquote class="tooltip-quote" id="tooltip-quote">
           «Tránsito vehicular y lanchas de fondo...»
-        </p>
+        </blockquote>
 
-        <div class="tooltip-db-compare">
-          <span>Onda de Decibeles abajo:</span>
-          <strong id="tooltip-db-val">71.4 dB (Leq)</strong>
+        <div class="tooltip-table-grid" id="tooltip-table-grid">
+          <div class="tooltip-grid-item" id="tooltip-grid-flujo">
+            <span class="tooltip-grid-label">Flujo urbano</span>
+            <strong class="tooltip-grid-val" id="tooltip-flujo-val">Peatonal Medio • Vehicular Alto</strong>
+          </div>
+          <div class="tooltip-grid-item" id="tooltip-grid-instrumento">
+            <span class="tooltip-grid-label">Sonómetro</span>
+            <strong class="tooltip-grid-val" id="tooltip-instrumento-val">Decibel Meter</strong>
+          </div>
         </div>
+
+        <footer class="tooltip-db-compare">
+          <div class="tooltip-db-meta">
+            <span>Decibeles medidos:</span>
+            <span class="tooltip-db-range" id="tooltip-db-range">Mín: 54.0 dB | Máx: 70.0 dB</span>
+          </div>
+          <strong class="tooltip-db-number" id="tooltip-db-val">62.0 dB</strong>
+        </footer>
       </article>
     </main>
 

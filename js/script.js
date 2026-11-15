@@ -52,13 +52,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Tooltip
   const tooltip = document.getElementById("node-tooltip");
+  const tooltipIdBadge = document.getElementById("tooltip-id-badge");
   const tooltipTime = document.getElementById("tooltip-time");
   const tooltipSector = document.getElementById("tooltip-sector");
   const tooltipCatDot = document.getElementById("tooltip-cat-dot");
   const tooltipCatName = document.getElementById("tooltip-cat-name");
+  const tooltipSecondaryTag = document.getElementById("tooltip-secondary-tag");
+  const tooltipFuenteName = document.getElementById("tooltip-fuente-name");
   const tooltipIntensityLevel = document.getElementById("tooltip-intensity-level");
   const tooltipPercentageText = document.getElementById("tooltip-percentage-text");
   const tooltipQuote = document.getElementById("tooltip-quote");
+  const tooltipFlujoVal = document.getElementById("tooltip-flujo-val");
+  const tooltipInstrumentoVal = document.getElementById("tooltip-instrumento-val");
+  const tooltipDbRange = document.getElementById("tooltip-db-range");
   const tooltipDbVal = document.getElementById("tooltip-db-val");
 
   // Carga de Datos
@@ -246,42 +252,98 @@ document.addEventListener("DOMContentLoaded", () => {
     const item = node.data;
     const isEnc = node.isEncuesta;
 
-    tooltipTime.textContent = `${item.hora} hrs`;
-    tooltipSector.textContent = item.sector;
+    // Identificador oficial de la tabla
+    if (isEnc) {
+      tooltipIdBadge.textContent = item.codigo ? `Encuesta ${item.codigo}` : "Encuesta";
+      tooltipIdBadge.style.background = "#0F172A";
+    } else {
+      tooltipIdBadge.textContent = item.ficha ? `Ficha ${item.ficha}` : "Ficha de Campo";
+      tooltipIdBadge.style.background = "#1E293B";
+    }
 
+    tooltipTime.textContent = `${item.hora} hrs`;
+    tooltipSector.textContent = item.sector || "Barrio Puerto";
+
+    // Categoría
     const cat = isEnc ? item.categoria_asignada : item.categoria;
     const color = getCategoryColor(cat);
     tooltipCatDot.style.backgroundColor = color;
     tooltipCatName.textContent = getCategoryName(cat);
 
+    if (!isEnc && item.categoria_secundaria && item.categoria_secundaria !== "ninguna" && item.categoria_secundaria !== cat) {
+      tooltipSecondaryTag.style.display = "inline-block";
+      tooltipSecondaryTag.textContent = `+ ${getCategoryName(item.categoria_secundaria)}`;
+    } else {
+      tooltipSecondaryTag.style.display = "none";
+    }
+
+    // Fuente sonora registrada en las tablas
+    const fuente = isEnc ? (item.fuente_dominante || "Sonido ambiental") : (item.fuente_predominante || "Sonido ambiental");
+    tooltipFuenteName.textContent = fuente;
+
+    // Calibre e intensidad del instrumento participativo
     const levelKey = node.intensityLevel;
     const info = PERCENTAGES_INSTRUMENTO[levelKey] || PERCENTAGES_INSTRUMENTO["Media"];
     tooltipIntensityLevel.textContent = info.label;
-    tooltipPercentageText.innerHTML = `<strong>${info.pct}% de las personas</strong> registraron este nivel (Agrado prom: ${info.agrado}%)`;
+    tooltipPercentageText.textContent = `${info.pct}% de participantes registraron este nivel (Confort prom: ${info.agrado}%)`;
 
+    // Cita textual ciudadana o fenómeno observado
     if (isEnc && item.cita) {
       tooltipQuote.textContent = `«${item.cita}»`;
+      tooltipQuote.style.borderLeftColor = color;
+      tooltipQuote.style.display = "block";
     } else if (item.fenomeno) {
       tooltipQuote.textContent = `«${item.fenomeno}»`;
+      tooltipQuote.style.borderLeftColor = color;
+      tooltipQuote.style.display = "block";
+    } else if (item.razon) {
+      tooltipQuote.textContent = `«${item.razon}»`;
+      tooltipQuote.style.borderLeftColor = color;
+      tooltipQuote.style.display = "block";
     } else {
-      tooltipQuote.textContent = `«${item.razon || "Observación de paisaje sonoro"}»`;
+      tooltipQuote.style.display = "none";
     }
 
-    const dbNum = isEnc ? (item.db_medido || 65.0) : item.db_prom;
-    tooltipDbVal.textContent = `${dbNum.toFixed(1)} dB (Leq)`;
-
-    const stageRect = document.getElementById("stage-container").getBoundingClientRect();
-    let xOffset = node.x + 20;
-    if (xOffset + 340 > stageRect.width) {
-      xOffset = node.x - 350;
+    // Datos de la tabla: Flujo y Sonómetro
+    if (isEnc) {
+      const agrado = item.sensacion_agrado ? `Sensación: ${item.sensacion_agrado}` : "Confort evaluado";
+      const enc = item.encuestador ? `Encuestador: ${item.encuestador}` : "Entrevista en terreno";
+      tooltipFlujoVal.textContent = agrado;
+      tooltipInstrumentoVal.textContent = enc;
+    } else {
+      const flPeat = item.flujo_peatonal ? `Peat: ${item.flujo_peatonal}` : "";
+      const flVeh = item.flujo_vehicular ? `Veh: ${item.flujo_vehicular}` : "";
+      tooltipFlujoVal.textContent = (flPeat && flVeh) ? `${flPeat} • ${flVeh}` : "Flujo registrado";
+      tooltipInstrumentoVal.textContent = item.instrumento || "Decibel Meter";
     }
 
-    let yOffset = node.y - 70;
+    // Decibeles medidos y rango
+    if (isEnc) {
+      const db = item.db_medido || 65.0;
+      tooltipDbVal.textContent = `${db.toFixed(1)} dB`;
+      tooltipDbRange.textContent = "Nivel continuo medido";
+    } else {
+      const db = item.db_prom || 60.0;
+      tooltipDbVal.textContent = `${db.toFixed(1)} dB`;
+      const min = item.db_min || (db - 6).toFixed(1);
+      const max = item.db_max || (db + 8).toFixed(1);
+      tooltipDbRange.textContent = `Rango: [Mín: ${min} dB — Máx: ${max} dB]`;
+    }
+
+    // Posicionamiento inteligente
+    const stage = document.getElementById("stage-container");
+    const stageRect = stage ? stage.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
+    let xOffset = node.x + 22;
+    if (xOffset + 360 > stageRect.width) {
+      xOffset = node.x - 365;
+    }
+
+    let yOffset = node.y - 110;
     if (yOffset < 15) yOffset = 15;
-    if (yOffset + 240 > stageRect.height) yOffset = stageRect.height - 250;
+    if (yOffset + 350 > stageRect.height) yOffset = stageRect.height - 360;
 
     tooltip.style.left = `${Math.max(15, xOffset)}px`;
-    tooltip.style.top = `${yOffset}px`;
+    tooltip.style.top = `${Math.max(15, yOffset)}px`;
     tooltip.classList.add("visible");
   }
 
@@ -360,21 +422,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
-    drawDecibelFluidWave(ctx, midY, padX, usableW, limitMinute, limitX, state.animPhase);
+    // Siempre visible a lo largo de toda la jornada (09:40 a 18:50)
+    drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase);
 
     // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
+    // Cada onda se dibuja completa a lo largo del tiempo, envolviendo sus nodos
     categoriesList.forEach((catKey, catIndex) => {
       if (!state.activeCategories[catKey]) return;
       const records = categoryRecords[catKey];
       if (records.length === 0) return;
 
-      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, limitMinute, limitX, state.animPhase, catIndex);
+      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex);
     });
 
-    // 4. CABEZAL DE COSTURA TEMPORAL
-    if (!state.showFullJourney) {
-      drawWeavingCursor(ctx, limitX, midY, h);
-    }
+    // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
+    drawWeavingCursor(ctx, currentCursorX, midY, h);
   }
 
   // =========================================================================
@@ -382,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // (Las ondas siguen los nodos, suben a sus crestas y los envuelven sin que
   //  ningún nodo quede por encima de la onda)
   // =========================================================================
-  function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, limitMinute, limitX, phase, catIdx) {
+  function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, phase, catIdx) {
     const colorHex = getCategoryColor(cat);
     const rgb = hexToRgb(colorHex);
 
@@ -457,7 +519,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return { spineY, env };
     }
 
-    // 3. Dibujar todos los filamentos de seda que componen la onda fluida
+    // 3. Dibujar todos los filamentos de seda que componen la onda fluida a lo largo de todo el día
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
 
@@ -471,8 +533,6 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let p = 0; p <= numSamples; p++) {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
-        if (minute > limitMinute) break;
-
         const x = padX + tNorm * usableW;
         const { spineY, env } = getSpineAt(tNorm, minute, strandPhase);
 
@@ -487,10 +547,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      // Transparencia gradual estilo veladura de acuarela
-      const alpha = 0.13 + (1 - Math.abs(strandNorm * 2)) * 0.22;
+      // Densidad y transparencia rica de acuarela visible
+      const alpha = 0.22 + (1 - Math.abs(strandNorm * 2)) * 0.38;
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-      ctx.lineWidth = 0.85;
+      ctx.lineWidth = 1.05;
       ctx.stroke();
     }
 
@@ -501,8 +561,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // garantizando que las hebras superiores del listón pasen SIEMPRE por encima de ellos
     // y que la onda siga milimétricamente cada nodo sin que queden flotando arriba.
     records.forEach(rec => {
-      if (rec.minute > limitMinute) return;
-
       const normT = (rec.minute - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
 
@@ -539,7 +597,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================================================================
   // ONDA INFERIOR DE DECIBELES MEDIDOS (Fluida hacia abajo)
   // =========================================================================
-  function drawDecibelFluidWave(ctx, midY, padX, usableW, limitMinute, limitX, phase) {
+  function drawDecibelFluidWave(ctx, midY, padX, usableW, phase) {
     if (!PROJECT_DATA) return;
     const records = PROJECT_DATA.fichas_campo;
 
@@ -580,8 +638,6 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let p = 0; p <= numSamples; p++) {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
-        if (minute > limitMinute) break;
-
         const x = padX + tNorm * usableW;
         const depth = getFluidDbDepth(minute);
 
@@ -598,13 +654,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.16)`;
-      ctx.lineWidth = 0.85;
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  }
+      const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      ctx.lineWidth = 1.05;
       ctx.stroke();
     }
 
@@ -691,7 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.beginPath();
     ctx.arc(x, midY, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "var(--text-main)";
+    ctx.fillStyle = "#0F172A";
     ctx.fill();
     ctx.restore();
   }
@@ -701,8 +753,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================================================================
   function getCategoryColor(cat) {
     switch (cat) {
-      case "transito": return "#8B5CF6";    // Morado Tránsito (solicitado)
-      case "personas": return "#D97706";    // Amarillo Mostaza Personas (solicitado)
+      case "transito": return "#8B5CF6";    // Morado Tránsito
+      case "personas": return "#D97706";    // Amarillo Mostaza Personas
       case "maquinarias": return "#EC4899"; // Rosado Maquinarias
       case "naturaleza": return "#06B6D4";  // Cian Naturaleza
       default: return "#F97316";
@@ -711,10 +763,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getCategoryName(cat) {
     switch (cat) {
-      case "transito": return "Tránsito (Morado)";
-      case "personas": return "Personas (Amarillo Mostaza)";
-      case "maquinarias": return "Maquinarias (Rosado)";
-      case "naturaleza": return "Naturaleza (Cian)";
+      case "transito": return "Tránsito";
+      case "personas": return "Personas";
+      case "maquinarias": return "Maquinarias";
+      case "naturaleza": return "Naturaleza";
       default: return "Ambiente General";
     }
   }
