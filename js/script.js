@@ -876,8 +876,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.restore();
 
-    // DIBUJAR NODOS Y NÚMEROS DE DECIBELES MEDIDOS DIRECTAMENTE EN LA ONDA INFERIOR
+    // DIBUJAR NODOS Y ETIQUETAS DE DECIBELES (1 CADA 3 POR LUGAR E INTERCALADOS VERTICALMENTE)
+    // 1. Filtrar 1 cada 3 registros por sector para evitar saturación y superposición
+    const sectorIndices = {};
+    const sampledRecords = [];
+
     records.forEach(r => {
+      const sec = r.sector || "General";
+      if (!sectorIndices[sec]) sectorIndices[sec] = 0;
+      if (sectorIndices[sec] % 3 === 0) {
+        sampledRecords.push(r);
+      }
+      sectorIndices[sec]++;
+    });
+
+    // Ordenar cronológicamente
+    sampledRecords.sort((a, b) => timeToMinutes(a.hora) - timeToMinutes(b.hora));
+
+    let lastLabelX = -999;
+    let staggerToggle = false;
+
+    sampledRecords.forEach(r => {
       const m = timeToMinutes(r.hora);
       if (m > revealMinute) return;
 
@@ -885,6 +904,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const x = padX + normT * usableW;
       const depth = getFluidDbDepth(m);
       const y = midY + depth;
+
+      // Garantizar que no colisionen horizontalmente (mínimo 38px entre marcas)
+      if (x - lastLabelX < 38) {
+        return; // Omitir si queda demasiado pegado a otra medición
+      }
+      lastLabelX = x;
+      staggerToggle = !staggerToggle;
 
       const isHovered = state.hoveredDbNode && state.hoveredDbNode.data === r;
       const isCurrent = Math.abs(m - state.currentMinute) <= 10;
@@ -901,28 +927,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Halo acústico
       ctx.beginPath();
-      ctx.arc(x, y, isHovered ? 14 : 9, 0, Math.PI * 2);
+      ctx.arc(x, y, isHovered ? 13 : 8.5, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isHovered ? 0.38 : 0.16})`;
       ctx.fill();
 
       // Centro del nodo
       ctx.beginPath();
-      ctx.arc(x, y, isHovered ? 7 : 5, 0, Math.PI * 2);
+      ctx.arc(x, y, isHovered ? 6.5 : 4.8, 0, Math.PI * 2);
       ctx.fillStyle = isHovered ? "#EA580C" : "#F97316";
       ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(x, y, isHovered ? 7 : 5, 0, Math.PI * 2);
+      ctx.arc(x, y, isHovered ? 6.5 : 4.8, 0, Math.PI * 2);
       ctx.strokeStyle = "#FFFFFF";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.4;
       ctx.stroke();
 
-      // Texto de decibeles medidos situado directamente en las ondas inferiores
+      // Posicionamiento intercalado vertical de las etiquetas de decibeles
+      const isStaggered = staggerToggle;
+      const labelYOffset = isStaggered ? 26 : 15;
+
+      // Línea guía tenue para etiquetas intercaladas inferiores
+      if (isStaggered) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + 6);
+        ctx.lineTo(x, y + labelYOffset - 8);
+        ctx.strokeStyle = "rgba(249, 115, 22, 0.35)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Pastilla de texto de decibeles medidos (limpia, nítida y legible)
       const dbVal = r.db_prom || 60;
       ctx.font = `800 10.5px 'Merriweather Sans', sans-serif`;
       ctx.textAlign = "center";
-      ctx.fillStyle = isHovered ? "#9A3412" : "#C2410C";
-      ctx.fillText(`${dbVal.toFixed(0)} dB`, x, y + 17);
+      ctx.fillStyle = isHovered ? "#9A3412" : (isStaggered ? "#9A3412" : "#C2410C");
+      ctx.fillText(`${dbVal.toFixed(0)} dB`, x, y + labelYOffset);
 
       ctx.restore();
     });
