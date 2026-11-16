@@ -36,9 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Cantidades reales del Instrumento Participativo según calibre de percepción (N=32 participantes)
   const INTENSIDAD_CANTIDADES = {
-    "Alta": { label: "Alta", count: "15 personas", num: 15 },
-    "Media": { label: "Media", count: "11 personas", num: 11 },
-    "Baja": { label: "Baja", count: "6 personas", num: 6 }
+    "Alta": { label: "Alta", count: "15", num: 15 },
+    "Media": { label: "Media", count: "11", num: 11 },
+    "Baja": { label: "Baja", count: "6", num: 6 }
   };
 
   // Elementos del DOM
@@ -802,7 +802,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Densidad y transparencia rica de acuarela visible
       const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
-      ctx.strokeStyle = gba(, , , );
+      ctx.strokeStyle = 
+gba(, , , );
       ctx.lineWidth = 1.05;
       ctx.stroke();
     }
