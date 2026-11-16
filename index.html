@@ -70,59 +70,58 @@
         </div>
       </aside>
 
-      <!-- Tooltip Flotante al pasar el cursor sobre los Nodos (Ficha de Datos Completa) -->
+      <!-- Tooltip al pasar el cursor sobre los Nodos de Percepción -->
       <article class="node-tooltip-card" id="node-tooltip" role="tooltip" aria-hidden="true">
         <header class="tooltip-header">
-          <div class="tooltip-header-left">
-            <span class="tooltip-id-badge" id="tooltip-id-badge">BP-01</span>
-            <span class="tooltip-time" id="tooltip-time">10:35 hrs</span>
-          </div>
-          <span class="tooltip-sector" id="tooltip-sector">Muelle Prat</span>
-        </header>
-
-        <div class="tooltip-category-row">
           <div class="tooltip-category-tag" id="tooltip-category-tag">
             <span class="cat-color-dot" id="tooltip-cat-dot"></span>
             <span id="tooltip-cat-name">Tránsito</span>
           </div>
-          <span class="tooltip-secondary-tag" id="tooltip-secondary-tag" style="display: none;"></span>
+          <span class="tooltip-time" id="tooltip-time">10:35 hrs</span>
+        </header>
+
+        <div class="tooltip-row-simple">
+          <span class="tooltip-meta-label">Lugar:</span>
+          <strong class="tooltip-sector-val" id="tooltip-sector">Muelle Prat</strong>
         </div>
 
-        <div class="tooltip-source-box" id="tooltip-source-box">
-          <span class="tooltip-meta-title">Fuente Sonora Registrada:</span>
+        <div class="tooltip-row-simple" id="tooltip-source-box">
+          <span class="tooltip-meta-label">Sonido:</span>
           <p class="tooltip-fuente-name" id="tooltip-fuente-name">Paso de micros y camiones</p>
         </div>
 
         <div class="tooltip-intensity-stat" id="tooltip-intensity-box">
-          <div class="tooltip-intensity-main">
-            <span class="tooltip-meta-title">Intensidad Percibida:</span>
-            <strong id="tooltip-intensity-level">Alta (Gran Calibre, 95 mm)</strong>
+          <div class="tooltip-intensity-row">
+            <span class="tooltip-meta-label">Intensidad Percibida:</span>
+            <strong id="tooltip-intensity-level">Alta</strong>
           </div>
-          <span class="tooltip-percentage-text" id="tooltip-percentage-text">46.9% de las personas registraron este nivel</span>
-        </div>
-
-        <blockquote class="tooltip-quote" id="tooltip-quote">
-          «Tránsito vehicular y lanchas de fondo...»
-        </blockquote>
-
-        <div class="tooltip-table-grid" id="tooltip-table-grid">
-          <div class="tooltip-grid-item" id="tooltip-grid-flujo">
-            <span class="tooltip-grid-label">Flujo urbano</span>
-            <strong class="tooltip-grid-val" id="tooltip-flujo-val">Peatonal Medio • Vehicular Alto</strong>
-          </div>
-          <div class="tooltip-grid-item" id="tooltip-grid-instrumento">
-            <span class="tooltip-grid-label">Sonómetro</span>
-            <strong class="tooltip-grid-val" id="tooltip-instrumento-val">Decibel Meter</strong>
+          <div class="tooltip-quantity-row">
+            <span class="tooltip-meta-label">Cantidad de personas:</span>
+            <strong class="tooltip-quantity-num" id="tooltip-quantity-val">15 personas</strong>
           </div>
         </div>
+      </article>
 
-        <footer class="tooltip-db-compare">
-          <div class="tooltip-db-meta">
-            <span>Decibeles medidos:</span>
-            <span class="tooltip-db-range" id="tooltip-db-range">Mín: 54.0 dB | Máx: 70.0 dB</span>
+      <!-- Tooltip para Nodos de Decibeles en las Ondas Inferiores -->
+      <article class="db-tooltip-card" id="db-tooltip" role="tooltip" aria-hidden="true">
+        <header class="tooltip-header">
+          <div class="tooltip-category-tag">
+            <span class="cat-color-dot" style="background-color: var(--color-decibeles);"></span>
+            <span>Decibeles Medidos</span>
           </div>
-          <strong class="tooltip-db-number" id="tooltip-db-val">62.0 dB</strong>
-        </footer>
+          <span class="tooltip-time" id="db-tooltip-time">10:35 hrs</span>
+        </header>
+
+        <div class="tooltip-row-simple">
+          <span class="tooltip-meta-label">Lugar:</span>
+          <strong class="tooltip-sector-val" id="db-tooltip-sector">Muelle Prat</strong>
+        </div>
+
+        <div class="db-tooltip-main">
+          <span class="tooltip-meta-label">Nivel Sonoro Medido:</span>
+          <strong class="db-tooltip-val" id="db-tooltip-val">68.0 dB</strong>
+        </div>
+        <div class="db-tooltip-range" id="db-tooltip-range">Rango medido: [54.0 dB — 76.0 dB]</div>
       </article>
     </main>
 

@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
       naturaleza: true
     },
     hoveredNode: null,
+    hoveredDbNode: null,
     mouseX: null,
     mouseY: null,
     animPhase: 0
@@ -33,11 +34,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const TIME_MIN = 580;  // 09:40 hrs
   const TIME_MAX = 1130; // 18:50 hrs
 
-  // Porcentajes reales del Instrumento Participativo (N=32)
-  const PERCENTAGES_INSTRUMENTO = {
-    "Alta": { pct: 46.9, agrado: 58.4, label: "Alta (Gran Calibre, 95 mm)" },
-    "Media": { pct: 31.3, agrado: 62.8, label: "Media (Calibre Medio, 70 mm)" },
-    "Baja": { pct: 21.9, agrado: 68.1, label: "Baja (Fondo Acústico, 28 mm)" }
+  // Cantidades reales del Instrumento Participativo según calibre de percepción (N=32 participantes)
+  const INTENSIDAD_CANTIDADES = {
+    "Alta": { label: "Alta", count: "15 personas", num: 15 },
+    "Media": { label: "Media", count: "11 personas", num: 11 },
+    "Baja": { label: "Baja", count: "6 personas", num: 6 }
   };
 
   // Elementos del DOM
@@ -236,22 +237,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // Tooltip
+  // Tooltip de Percepción (Nodos Superiores)
   const tooltip = document.getElementById("node-tooltip");
-  const tooltipIdBadge = document.getElementById("tooltip-id-badge");
   const tooltipTime = document.getElementById("tooltip-time");
   const tooltipSector = document.getElementById("tooltip-sector");
   const tooltipCatDot = document.getElementById("tooltip-cat-dot");
   const tooltipCatName = document.getElementById("tooltip-cat-name");
-  const tooltipSecondaryTag = document.getElementById("tooltip-secondary-tag");
   const tooltipFuenteName = document.getElementById("tooltip-fuente-name");
   const tooltipIntensityLevel = document.getElementById("tooltip-intensity-level");
-  const tooltipPercentageText = document.getElementById("tooltip-percentage-text");
-  const tooltipQuote = document.getElementById("tooltip-quote");
-  const tooltipFlujoVal = document.getElementById("tooltip-flujo-val");
-  const tooltipInstrumentoVal = document.getElementById("tooltip-instrumento-val");
-  const tooltipDbRange = document.getElementById("tooltip-db-range");
-  const tooltipDbVal = document.getElementById("tooltip-db-val");
+  const tooltipQuantityVal = document.getElementById("tooltip-quantity-val");
+
+  // Tooltip de Decibeles (Ondas Inferiores)
+  const dbTooltip = document.getElementById("db-tooltip");
+  const dbTooltipTime = document.getElementById("db-tooltip-time");
+  const dbTooltipSector = document.getElementById("db-tooltip-sector");
+  const dbTooltipVal = document.getElementById("db-tooltip-val");
+  const dbTooltipRange = document.getElementById("db-tooltip-range");
 
   // Carga de Datos
   async function loadData() {
@@ -422,9 +423,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // HOVER SOBRE NODOS
+  // HOVER SOBRE NODOS (PERCEPCIÓN ARRIBA Y DECIBELES ABAJO)
   // =========================================================================
   const renderedNodes = [];
+  const renderedDbNodes = [];
 
   function handleCanvasMouseMove(e) {
     const rect = canvas.getBoundingClientRect();
@@ -434,6 +436,9 @@ document.addEventListener("DOMContentLoaded", () => {
     state.mouseY = my;
 
     let hit = null;
+    let hitDb = null;
+
+    // 1. Detectar nodos superiores de percepción
     for (const node of renderedNodes) {
       const dist = Math.hypot(mx - node.x, my - node.y);
       if (dist <= node.radius + 12) {
@@ -442,117 +447,110 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    // 2. Detectar nodos inferiores de decibeles
+    if (!hit) {
+      for (const node of renderedDbNodes) {
+        const dist = Math.hypot(mx - node.x, my - node.y);
+        if (dist <= node.radius + 12) {
+          hitDb = node;
+          break;
+        }
+      }
+    }
+
     state.hoveredNode = hit;
+    state.hoveredDbNode = hitDb;
 
     if (hit) {
-      showNodeTooltip(hit, e.clientX, e.clientY);
+      if (dbTooltip) dbTooltip.classList.remove("visible");
+      showNodeTooltip(hit);
     } else {
-      tooltip.classList.remove("visible");
+      if (tooltip) tooltip.classList.remove("visible");
+    }
+
+    if (hitDb) {
+      if (tooltip) tooltip.classList.remove("visible");
+      showDbTooltip(hitDb);
+    } else if (!hit) {
+      if (dbTooltip) dbTooltip.classList.remove("visible");
     }
   }
 
   function handleCanvasMouseLeave() {
     state.hoveredNode = null;
-    tooltip.classList.remove("visible");
+    state.hoveredDbNode = null;
+    if (tooltip) tooltip.classList.remove("visible");
+    if (dbTooltip) dbTooltip.classList.remove("visible");
   }
 
-  function showNodeTooltip(node, clientX, clientY) {
+  // Tooltip Superior: Solo Percepción (Qué es, hora, lugar, e intensidad en cantidad)
+  function showNodeTooltip(node) {
     const item = node.data;
     const isEnc = node.isEncuesta;
 
-    // Identificador oficial de la tabla
-    if (isEnc) {
-      tooltipIdBadge.textContent = item.codigo ? `Encuesta ${item.codigo}` : "Encuesta";
-      tooltipIdBadge.style.background = "#0F172A";
-    } else {
-      tooltipIdBadge.textContent = item.ficha ? `Ficha ${item.ficha}` : "Ficha de Campo";
-      tooltipIdBadge.style.background = "#1E293B";
-    }
-
+    // Hora y Lugar
     tooltipTime.textContent = `${item.hora} hrs`;
     tooltipSector.textContent = item.sector || "Barrio Puerto";
 
-    // Categoría
+    // Qué sonido es (Categoría con punto de color)
     const cat = isEnc ? item.categoria_asignada : item.categoria;
     const color = getCategoryColor(cat);
     tooltipCatDot.style.backgroundColor = color;
     tooltipCatName.textContent = getCategoryName(cat);
 
-    if (!isEnc && item.categoria_secundaria && item.categoria_secundaria !== "ninguna" && item.categoria_secundaria !== cat) {
-      tooltipSecondaryTag.style.display = "inline-block";
-      tooltipSecondaryTag.textContent = `+ ${getCategoryName(item.categoria_secundaria)}`;
-    } else {
-      tooltipSecondaryTag.style.display = "none";
-    }
-
-    // Fuente sonora registrada en las tablas
+    // Fuente sonora registrada
     const fuente = isEnc ? (item.fuente_dominante || "Sonido ambiental") : (item.fuente_predominante || "Sonido ambiental");
     tooltipFuenteName.textContent = fuente;
 
-    // Calibre e intensidad del instrumento participativo
-    const levelKey = node.intensityLevel;
-    const info = PERCENTAGES_INSTRUMENTO[levelKey] || PERCENTAGES_INSTRUMENTO["Media"];
+    // Intensidad percibida por las personas en CANTIDAD (no porcentaje)
+    const levelKey = node.intensityLevel || "Media";
+    const info = INTENSIDAD_CANTIDADES[levelKey] || INTENSIDAD_CANTIDADES["Media"];
     tooltipIntensityLevel.textContent = info.label;
-    tooltipPercentageText.textContent = `${info.pct}% de participantes registraron este nivel (Confort prom: ${info.agrado}%)`;
+    tooltipQuantityVal.textContent = info.count;
 
-    // Cita textual ciudadana o fenómeno observado
-    if (isEnc && item.cita) {
-      tooltipQuote.textContent = `«${item.cita}»`;
-      tooltipQuote.style.borderLeftColor = color;
-      tooltipQuote.style.display = "block";
-    } else if (item.fenomeno) {
-      tooltipQuote.textContent = `«${item.fenomeno}»`;
-      tooltipQuote.style.borderLeftColor = color;
-      tooltipQuote.style.display = "block";
-    } else if (item.razon) {
-      tooltipQuote.textContent = `«${item.razon}»`;
-      tooltipQuote.style.borderLeftColor = color;
-      tooltipQuote.style.display = "block";
-    } else {
-      tooltipQuote.style.display = "none";
-    }
-
-    // Datos de la tabla: Flujo y Sonómetro
-    if (isEnc) {
-      const agrado = item.sensacion_agrado ? `Sensación: ${item.sensacion_agrado}` : "Confort evaluado";
-      const enc = item.encuestador ? `Encuestador: ${item.encuestador}` : "Entrevista en terreno";
-      tooltipFlujoVal.textContent = agrado;
-      tooltipInstrumentoVal.textContent = enc;
-    } else {
-      const flPeat = item.flujo_peatonal ? `Peat: ${item.flujo_peatonal}` : "";
-      const flVeh = item.flujo_vehicular ? `Veh: ${item.flujo_vehicular}` : "";
-      tooltipFlujoVal.textContent = (flPeat && flVeh) ? `${flPeat} • ${flVeh}` : "Flujo registrado";
-      tooltipInstrumentoVal.textContent = item.instrumento || "Decibel Meter";
-    }
-
-    // Decibeles medidos y rango
-    if (isEnc) {
-      const db = item.db_medido || 65.0;
-      tooltipDbVal.textContent = `${db.toFixed(1)} dB`;
-      tooltipDbRange.textContent = "Nivel continuo medido";
-    } else {
-      const db = item.db_prom || 60.0;
-      tooltipDbVal.textContent = `${db.toFixed(1)} dB`;
-      const min = item.db_min || (db - 6).toFixed(1);
-      const max = item.db_max || (db + 8).toFixed(1);
-      tooltipDbRange.textContent = `Rango: [Mín: ${min} dB — Máx: ${max} dB]`;
-    }
-
-    // Posicionamiento inteligente
+    // Posicionamiento inteligente y compacto
     const stage = document.getElementById("stage-container");
     const stageRect = stage ? stage.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
-    let xOffset = node.x + 22;
-    if (xOffset + 360 > stageRect.width) {
-      xOffset = node.x - 365;
+    let xOffset = node.x + 18;
+    if (xOffset + 285 > stageRect.width) {
+      xOffset = node.x - 290;
     }
 
-    let yOffset = node.y - 110;
+    let yOffset = node.y - 75;
     if (yOffset < 15) yOffset = 15;
-    if (yOffset + 350 > stageRect.height) yOffset = stageRect.height - 360;
+    if (yOffset + 220 > stageRect.height) yOffset = stageRect.height - 230;
 
     tooltip.style.left = `${Math.max(15, xOffset)}px`;
     tooltip.style.top = `${Math.max(15, yOffset)}px`;
     tooltip.classList.add("visible");
+  }
+
+  // Tooltip Inferior: Exclusivo para Decibeles Medidos
+  function showDbTooltip(node) {
+    const item = node.data;
+    dbTooltipTime.textContent = `${item.hora} hrs`;
+    dbTooltipSector.textContent = item.sector || "Barrio Puerto";
+
+    const db = item.db_prom || 60.0;
+    dbTooltipVal.textContent = `${db.toFixed(1)} dB`;
+    const min = item.db_min || (db - 6).toFixed(1);
+    const max = item.db_max || (db + 8).toFixed(1);
+    dbTooltipRange.textContent = `Rango sonómetro: [Mín: ${min} dB — Máx: ${max} dB]`;
+
+    const stage = document.getElementById("stage-container");
+    const stageRect = stage ? stage.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
+    let xOffset = node.x + 18;
+    if (xOffset + 285 > stageRect.width) {
+      xOffset = node.x - 290;
+    }
+
+    let yOffset = node.y - 65;
+    if (yOffset < 15) yOffset = 15;
+    if (yOffset + 180 > stageRect.height) yOffset = stageRect.height - 190;
+
+    dbTooltip.style.left = `${Math.max(15, xOffset)}px`;
+    dbTooltip.style.top = `${Math.max(15, yOffset)}px`;
+    dbTooltip.classList.add("visible");
   }
 
   // =========================================================================
@@ -572,6 +570,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.clearRect(0, 0, w, h);
     renderedNodes.length = 0;
+    renderedDbNodes.length = 0;
 
     const midY = h * 0.50;
     const padX = 75;
@@ -876,6 +875,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     ctx.restore();
+
+    // DIBUJAR NODOS Y NÚMEROS DE DECIBELES MEDIDOS DIRECTAMENTE EN LA ONDA INFERIOR
+    records.forEach(r => {
+      const m = timeToMinutes(r.hora);
+      if (m > revealMinute) return;
+
+      const normT = (m - TIME_MIN) / (TIME_MAX - TIME_MIN);
+      const x = padX + normT * usableW;
+      const depth = getFluidDbDepth(m);
+      const y = midY + depth;
+
+      const isHovered = state.hoveredDbNode && state.hoveredDbNode.data === r;
+      const isCurrent = Math.abs(m - state.currentMinute) <= 10;
+
+      renderedDbNodes.push({
+        x,
+        y,
+        radius: 7,
+        data: r
+      });
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+
+      // Halo acústico
+      ctx.beginPath();
+      ctx.arc(x, y, isHovered ? 14 : 9, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isHovered ? 0.38 : 0.16})`;
+      ctx.fill();
+
+      // Centro del nodo
+      ctx.beginPath();
+      ctx.arc(x, y, isHovered ? 7 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = isHovered ? "#EA580C" : "#F97316";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(x, y, isHovered ? 7 : 5, 0, Math.PI * 2);
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Texto de decibeles medidos situado directamente en las ondas inferiores
+      const dbVal = r.db_prom || 60;
+      ctx.font = `800 10.5px 'Merriweather Sans', sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = isHovered ? "#9A3412" : "#C2410C";
+      ctx.fillText(`${dbVal.toFixed(0)} dB`, x, y + 17);
+
+      ctx.restore();
+    });
   }
 
   // =========================================================================
