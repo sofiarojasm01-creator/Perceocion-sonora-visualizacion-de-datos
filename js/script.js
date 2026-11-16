@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const soundEngine = {
     isInitialized: false,
     isMasterMuted: false,
-    masterVolume: 0.36, // Nivel global suave y relajante, nunca estridente ni molesto
+    masterVolume: 0.38, // Nivel global suave y equilibrado para disfrute continuo
     hasUserStarted: false,
 
     tracks: {
@@ -73,33 +73,33 @@ document.addEventListener("DOMContentLoaded", () => {
         id: "audio-transito",
         src: "assets/sonidos/video transito.mp3",
         audio: null,
-        baseWeight: 0.28, // Tránsito: 32.8% en datos (mayor presencia sonora en Barrio Puerto)
-        currentVol: 0.0,
-        targetVol: 0.0
+        baseWeight: 0.28, // Tránsito: micros, autos y rodado sobre adoquín
+        currentVol: 0.28,
+        targetVol: 0.28
       },
       personas: {
         id: "audio-personas",
         src: "assets/sonidos/video personas sonido.mp3",
         audio: null,
-        baseWeight: 0.25, // Personas: 31.3% en datos (voces, pregones, ambiente de calle)
-        currentVol: 0.0,
-        targetVol: 0.0
+        baseWeight: 0.25, // Personas: charlas callejeras, pregones y voces
+        currentVol: 0.25,
+        targetVol: 0.25
       },
       maquinarias: {
         id: "audio-maquinarias",
         src: "assets/sonidos/video maquinarias.mp3",
         audio: null,
-        baseWeight: 0.18, // Maquinarias: 22.5% en datos (motores de lanchas, grúas portuarias)
-        currentVol: 0.0,
-        targetVol: 0.0
+        baseWeight: 0.20, // Maquinarias: motores marinos y actividad portuaria
+        currentVol: 0.20,
+        targetVol: 0.20
       },
       naturaleza: {
         id: "audio-naturaleza",
         src: "assets/sonidos/video naturaleza.mp3",
         audio: null,
-        baseWeight: 0.055, // Naturaleza: 13.4% en datos (volumen más bajo por ser el menos escuchado según los datos)
-        currentVol: 0.0,
-        targetVol: 0.0
+        baseWeight: 0.22, // Naturaleza: oleaje del mar Pacífico y viento costero más presente y claro
+        currentVol: 0.22,
+        targetVol: 0.22
       }
     },
 
@@ -115,10 +115,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         el.loop = true;
         el.preload = "auto";
-        el.volume = 0; // Comienza silenciado hasta modulación suave
+        // Asignar volumen audible desde el inicio para que suenen todos al arrancar
+        const initVol = Math.max(0, Math.min(1, item.baseWeight * this.masterVolume));
+        el.volume = initVol;
+        item.currentVol = item.baseWeight;
+        item.targetVol = item.baseWeight;
         item.audio = el;
 
-        // Reinicio automático en bucle continuo sin interrupciones
+        // Reinicio automático en bucle continuo sin cortes
         el.addEventListener("ended", () => {
           el.currentTime = 0;
           el.play().catch(() => {});
@@ -135,13 +139,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       this.hasUserStarted = true;
 
-      // Iniciar reproducción simultánea de todas las pistas de audio
+      // Iniciar reproducción simultánea de todas las pistas desde el primer momento
       for (const cat in this.tracks) {
         const item = this.tracks[cat];
-        if (item.audio && item.audio.paused) {
-          item.audio.play().catch(() => {
-            // Se desbloquea con la primera interacción del usuario en la página
-          });
+        if (item.audio) {
+          if (item.audio.paused) {
+            item.audio.play().catch(() => {
+              // Si el navegador bloquea autoplay sin gesto, se desbloqueará en cuanto se toque la pantalla
+            });
+          }
         }
       }
     },
@@ -175,10 +181,10 @@ document.addEventListener("DOMContentLoaded", () => {
           }
 
           // Factor de intensidad según el calibre de percepción ciudadana
-          let intensityFactor = 0.85; // Presencia basal suave
+          let intensityFactor = 0.90; // Presencia basal viva
           if (nearbyCount > 0) {
             if (maxCalibre === 95) {
-              intensityFactor = 1.30; // Nivel Alto (picos de flujo vial, concentraciones humanas)
+              intensityFactor = 1.30; // Nivel Alto (picos de flujo vial o encuentros masivos)
             } else if (maxCalibre === 70) {
               intensityFactor = 1.10; // Nivel Medio
             } else {
@@ -186,18 +192,17 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
 
-          // Modulación específica según hallazgos del estudio:
-          // Naturaleza (13.4% en datos) se mantiene siempre en un volumen más bajo y suave
+          // Naturaleza con mayor presencia y protagonismo auditivo costero
           if (cat === "naturaleza") {
-            const oceanPresence = nearbyCount > 0 ? 0.075 : 0.040;
+            const oceanPresence = nearbyCount > 0 ? 0.26 : 0.20;
             item.targetVol = oceanPresence;
           } else {
-            item.targetVol = Math.min(0.38, Math.max(0.08, item.baseWeight * intensityFactor));
+            item.targetVol = Math.min(0.38, Math.max(0.10, item.baseWeight * intensityFactor));
           }
         }
 
         // Interpolación fluida (fade orgánico entre frames)
-        const ease = 0.07;
+        const ease = 0.08;
         item.currentVol += (item.targetVol - item.currentVol) * ease;
         const actualVol = Math.max(0, Math.min(1, item.currentVol * this.masterVolume));
 
@@ -256,6 +261,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setupCanvas();
     setupSlider();
     setupEvents();
+    soundEngine.init();
+    soundEngine.resume();
     renderLoop();
   }
 
@@ -371,9 +378,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    // Iniciar reproducción simultánea en la interacción del usuario
-    document.addEventListener("pointerdown", () => {
+    // Iniciar reproducción simultánea inmediata en cualquier primera interacción
+    const startAllAudio = () => {
       soundEngine.resume();
+    };
+    ["pointerdown", "click", "touchstart", "keydown", "wheel"].forEach(evt => {
+      window.addEventListener(evt, startAllAudio, { passive: true });
     });
 
     canvas.addEventListener("click", () => {
