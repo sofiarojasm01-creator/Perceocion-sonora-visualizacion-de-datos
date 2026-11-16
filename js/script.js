@@ -132,23 +132,34 @@ document.addEventListener("DOMContentLoaded", () => {
       this.isInitialized = true;
     },
 
-    resume() {
+    play() {
       if (!this.isInitialized) {
         this.init();
       }
+      this.isPlaying = true;
 
-      this.hasUserStarted = true;
-
-      // Iniciar reproducción simultánea de todas las pistas desde el primer momento
+      // Iniciar reproducción simultánea de todas las pistas de audio
       for (const cat in this.tracks) {
         const item = this.tracks[cat];
         if (item.audio) {
-          if (item.audio.paused) {
-            item.audio.play().catch(() => {
-              // Si el navegador bloquea autoplay sin gesto, se desbloqueará en cuanto se toque la pantalla
-            });
-          }
+          item.audio.play().catch(() => {});
         }
+      }
+    },
+
+    pause() {
+      this.isPlaying = false;
+      for (const cat in this.tracks) {
+        const item = this.tracks[cat];
+        if (item.audio && !item.audio.paused) {
+          item.audio.pause();
+        }
+      }
+    },
+
+    resume() {
+      if (state && state.isPlaying) {
+        this.play();
       }
     },
 
@@ -218,8 +229,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       this.isMasterMuted = !this.isMasterMuted;
 
-      if (!this.isMasterMuted) {
-        this.resume();
+      if (!this.isMasterMuted && state && state.isPlaying) {
+        this.play();
       }
       return !this.isMasterMuted;
     }
@@ -261,8 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupCanvas();
     setupSlider();
     setupEvents();
-    soundEngine.init();
-    soundEngine.resume();
+    soundEngine.init(); // Inicializa pistas, listas para reproducir cuando se presione Play
     renderLoop();
   }
 
@@ -286,7 +296,6 @@ document.addEventListener("DOMContentLoaded", () => {
     currentTimeText.textContent = formatMinute(state.currentMinute);
 
     timeSlider.addEventListener("input", (e) => {
-      soundEngine.resume();
       state.showFullJourney = false;
       btnToggleJourney.classList.remove("active");
       btnToggleJourney.textContent = "Ver todo el recorrido";
@@ -299,7 +308,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".moment-chip").forEach(chip => {
       chip.addEventListener("click", () => {
-        soundEngine.resume();
         state.showFullJourney = false;
         btnToggleJourney.classList.remove("active");
         btnToggleJourney.textContent = "Ver todo el recorrido";
@@ -314,7 +322,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tick-mark").forEach(tick => {
       tick.addEventListener("click", () => {
-        soundEngine.resume();
         state.showFullJourney = false;
         btnToggleJourney.classList.remove("active");
         btnToggleJourney.textContent = "Ver todo el recorrido";
@@ -330,12 +337,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setupEvents() {
     btnPlayPause.addEventListener("click", () => {
-      soundEngine.resume();
       togglePlayPause();
     });
 
     btnToggleJourney.addEventListener("click", () => {
-      soundEngine.resume();
       state.showFullJourney = !state.showFullJourney;
       if (state.showFullJourney) {
         btnToggleJourney.classList.add("active");
@@ -356,7 +361,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Filtros de categorías y silenciadores individuales
     document.querySelectorAll(".cat-legend-item").forEach(item => {
       item.addEventListener("click", () => {
-        soundEngine.resume();
         const cat = item.dataset.category;
         state.activeCategories[cat] = !state.activeCategories[cat];
         item.classList.toggle("inactive", !state.activeCategories[cat]);
@@ -371,24 +375,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Botón Master de Sonido
     if (btnToggleSound) {
       btnToggleSound.addEventListener("click", () => {
-        soundEngine.resume();
         const isActive = soundEngine.toggleMasterMute();
         btnToggleSound.classList.toggle("muted", !isActive);
         btnToggleSound.textContent = isActive ? "🔊 Sonido ambiental" : "🔇 Sonido silenciado";
       });
     }
-
-    // Iniciar reproducción simultánea inmediata en cualquier primera interacción
-    const startAllAudio = () => {
-      soundEngine.resume();
-    };
-    ["pointerdown", "click", "touchstart", "keydown", "wheel"].forEach(evt => {
-      window.addEventListener(evt, startAllAudio, { passive: true });
-    });
-
-    canvas.addEventListener("click", () => {
-      soundEngine.resume();
-    });
 
     canvas.addEventListener("mousemove", handleCanvasMouseMove);
     canvas.addEventListener("mouseleave", handleCanvasMouseLeave);
@@ -410,6 +401,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       playIcon.style.display = "none";
       pauseIcon.style.display = "block";
+      soundEngine.play(); // Iniciar todos los sonidos al dar play a la línea del tiempo
+
       state.playbackTimer = setInterval(() => {
         if (state.currentMinute >= TIME_MAX) {
           state.currentMinute = TIME_MIN;
@@ -424,6 +417,7 @@ document.addEventListener("DOMContentLoaded", () => {
       playIcon.style.display = "block";
       pauseIcon.style.display = "none";
       if (state.playbackTimer) clearInterval(state.playbackTimer);
+      soundEngine.pause(); // Si se pausa la línea de tiempo, el sonido para de inmediato
     }
   }
 
