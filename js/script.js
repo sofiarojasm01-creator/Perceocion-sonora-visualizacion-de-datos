@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PAISAJE SONORO DEL BARRIO PUERTO — VALPARAÍSO
  * Ondas Fluidas de Filamentos Generativos (Seda / Guilloché / Moiré)
  * Paleta Oficial:
@@ -359,6 +359,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    const activeSpeakerSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+    const mutedSpeakerSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
+
     // Filtros de categorías y silenciadores individuales
     document.querySelectorAll(".cat-legend-item").forEach(item => {
       item.addEventListener("click", () => {
@@ -368,7 +371,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const iconEl = item.querySelector(".cat-sound-icon");
         if (iconEl) {
-          iconEl.textContent = state.activeCategories[cat] ? "🔊" : "🔇";
+          iconEl.innerHTML = state.activeCategories[cat] ? activeSpeakerSvg : mutedSpeakerSvg;
         }
       });
     });
@@ -387,9 +390,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateMomentChips(min) {
-    document.querySelectorAll(".moment-chip").forEach(chip => {
+    const chips = Array.from(document.querySelectorAll(".moment-chip"));
+    if (chips.length === 0) return;
+
+    let closestChip = null;
+    let minDiff = Infinity;
+    chips.forEach(chip => {
       const chipMin = timeToMinutes(chip.dataset.timeTarget);
-      chip.classList.toggle("active", Math.abs(min - chipMin) < 45);
+      const diff = Math.abs(min - chipMin);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestChip = chip;
+      }
+    });
+
+    chips.forEach(chip => {
+      chip.classList.toggle("active", chip === closestChip && minDiff <= 95);
     });
   }
 
@@ -683,13 +699,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const numStrands = 36;
     const numSamples = 160; // Alta densidad de muestreo para máxima fluidez
 
-    // 1. Función unificada de envolvente que calcula la cresta y el grosor del listón
+    // 1. Función unificada de envolvente que modula elevación y apertura según intensidad percibida
     function getFluidEnvelope(minute) {
-      let maxWeight = 0;
       let totalW = 0;
       let accumElev = 0;
       let accumWidth = 0;
-      const sigma = 34; // Dispersión orgánica de onda
+      let accumOpenness = 0;
+      let maxWeight = 0;
+      const sigma = 32; // Dispersión orgánica ultra fluida
 
       for (const r of records) {
         const diff = minute - r.minute;
@@ -697,45 +714,55 @@ document.addEventListener("DOMContentLoaded", () => {
         totalW += w;
         if (w > maxWeight) maxWeight = w;
 
-        // Elevación según percepción registrada (Alta: 155px, Media: 85px, Baja: 38px)
-        let elev = 38;
-        let bandW = 34;
+        // Modulación según intensidad percibida (calibre en mm):
+        // Calibre 95 (Alta): la onda se abre ampliamente (listón ancho de filamentos)
+        // Calibre 70 (Media): apertura intermedia
+        // Calibre 40/28 (Baja): la onda se cierra ceñida (filamentos compactos y juntos)
+        let elev = 32;
+        let bandW = 10;
+        let openness = 0.08;
+
         if (r.calibre === 95) {
-          elev = 155; // Alta = onda grande
-          bandW = 76;
+          elev = 150;     // Alta = cresta alta
+          bandW = 84;     // Se abre ampliamente
+          openness = 1.0;
         } else if (r.calibre === 70) {
-          elev = 85;  // Media = sube un poco
-          bandW = 50;
+          elev = 80;      // Media = elevación moderada
+          bandW = 40;     // Apertura intermedia
+          openness = 0.45;
         } else {
-          elev = 38;  // Baja = se mantiene cerca del medio
-          bandW = 34;
+          elev = 32;      // Baja = cerca de la línea base
+          bandW = 10;     // Se cierra ceñida
+          openness = 0.08;
         }
 
         accumElev += elev * w;
         accumWidth += bandW * w;
+        accumOpenness += openness * w;
       }
 
-      if (totalW < 0.001) {
-        return { elevation: 22, width: 24, maxWeight: 0 };
+      if (totalW < 0.0001) {
+        return { elevation: 16, width: 8, openness: 0.06, maxWeight: 0 };
       }
 
       const avgElev = accumElev / totalW;
       const avgWidth = accumWidth / totalW;
+      const avgOpenness = accumOpenness / totalW;
 
-      // Fuera de los momentos observados, la onda descansa suavemente en un curso calmo
-      const blend = Math.min(1, maxWeight * 1.6);
-      const elevation = avgElev * blend + 22 * (1 - blend);
-      const width = Math.max(26, avgWidth * blend + 24 * (1 - blend));
+      // Fusión suave con el curso calmo y cerrado fuera de los momentos registrados
+      const blend = Math.min(1, maxWeight * 1.5);
+      const elevation = avgElev * blend + 16 * (1 - blend);
+      const width = avgWidth * blend + 8 * (1 - blend);
+      const openness = avgOpenness * blend + 0.06 * (1 - blend);
 
-      return { elevation, width, maxWeight };
+      return { elevation, width, openness, maxWeight };
     }
 
     // 2. Función unificada para calcular la posición exacta del espinazo central de la onda
-    function getSpineAt(normT, minute, strandPhaseOffset = 0) {
+    function getSpineAt(normT, minute) {
       const env = getFluidEnvelope(minute);
-      // Ondulación armónica líquida continua
-      const harmonicMotion = Math.sin(normT * 12 - phase * 1.1 + catIdx * 1.3 + strandPhaseOffset) * 10 +
-                             Math.cos(normT * 24 + strandPhaseOffset * 0.6) * 5;
+      // Ondulación armónica base compartida suavemente por toda la onda
+      const harmonicMotion = Math.sin(normT * 12 - phase * 1.1 + catIdx * 1.3) * (6 + env.openness * 8);
       const spineY = midY + baseOffset - env.elevation + harmonicMotion;
       return { spineY, env };
     }
@@ -746,7 +773,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     for (let s = 0; s < numStrands; s++) {
       const strandNorm = (s / (numStrands - 1)) - 0.5; // [-0.5 (arriba), +0.5 (abajo)]
-      const strandPhase = s * 0.16 + phase * 0.7 + catIdx * 1.2;
+      const strandPhase = s * 0.18 + phase * 0.75 + catIdx * 1.25;
 
       ctx.beginPath();
       let isFirst = true;
@@ -757,10 +784,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (minute > revealMinute) break; // Se arma progresivamente
 
         const x = padX + tNorm * usableW;
-        const { spineY, env } = getSpineAt(tNorm, minute, strandPhase);
+        const { spineY, env } = getSpineAt(tNorm, minute);
 
-        // Cada filamento se ubica dentro del ancho del listón
-        const strandY = spineY + (strandNorm * env.width);
+        // Cada filamento se ubica dentro del ancho de la onda:
+        // Si es alta intensidad, env.width se expande hasta ~84px (la onda se abre)
+        // Si es baja intensidad, env.width se contrae a ~10px (la onda se cierra)
+        const strandFlutter = Math.sin(tNorm * 22 + strandPhase) * (env.openness * 5.5);
+        const strandY = spineY + (strandNorm * env.width) + strandFlutter;
 
         if (isFirst) {
           ctx.moveTo(x, strandY);
@@ -771,8 +801,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // Densidad y transparencia rica de acuarela visible
-      const alpha = 0.22 + (1 - Math.abs(strandNorm * 2)) * 0.38;
-      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
+      ctx.strokeStyle = gba(, , , );
       ctx.lineWidth = 1.05;
       ctx.stroke();
     }
@@ -788,7 +818,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const x = padX + normT * usableW;
 
       // Calcular el espinazo usando exactamente la misma función de la onda
-      const { spineY } = getSpineAt(normT, rec.minute, 0);
+      const { spineY } = getSpineAt(normT, rec.minute);
 
       let intensityLevel = "Baja";
       let nodeR = 6;

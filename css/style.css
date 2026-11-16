@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    PAISAJE SONORO DEL BARRIO PUERTO — VALPARAÍSO
    Ondas de Filamentos Generativos (Seda / Guilloché / Moiré)
    Una onda por tipo de sonido + Crecimiento temporal progresivo
@@ -139,20 +139,44 @@ h1, h2, h3, h4, h5, h6 {
 
 .cat-legend-item.inactive {
   opacity: 0.42;
-  text-decoration: line-through;
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(15, 23, 42, 0.03);
   border-color: transparent;
 }
 
 .cat-sound-icon {
-  font-size: 0.72rem;
-  margin-left: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.25rem;
+  line-height: 1;
+}
+
+.cat-sound-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+/* Colores de íconos de sonido según categoría */
+.cat-legend-item[data-category="transito"] .cat-sound-icon {
+  color: var(--color-transito);
+}
+
+.cat-legend-item[data-category="personas"] .cat-sound-icon {
+  color: var(--color-personas);
+}
+
+.cat-legend-item[data-category="maquinarias"] .cat-sound-icon {
+  color: var(--color-maquinarias);
+}
+
+.cat-legend-item[data-category="naturaleza"] .cat-sound-icon {
+  color: var(--color-naturaleza);
+}
+
 .cat-legend-item.inactive .cat-sound-icon {
-  opacity: 0.4;
-  filter: grayscale(1);
+  opacity: 0.5;
 }
 
 .cat-color-dot {
@@ -524,19 +548,21 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-left: auto;
 }
 
 .moment-chip {
   background: rgba(15, 23, 42, 0.04);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  padding: 0.25rem 0.8rem;
-  font-size: 0.74rem;
+  padding: 0.3rem 0.9rem;
+  font-family: var(--font-main);
+  font-size: 0.76rem;
+  font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition-smooth);
 }
-
 .moment-chip:hover {
   background: #FFFFFF;
   border-color: var(--border-medium);
