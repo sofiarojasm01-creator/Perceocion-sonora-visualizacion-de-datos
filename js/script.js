@@ -582,11 +582,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const currentCursorX = minToX(state.currentMinute);
-    // Límite temporal progresivo: las ondas se van armando a medida que avanza el slider
-    const revealMinute = state.showFullJourney ? TIME_MAX : Math.max(TIME_MIN + 25, state.currentMinute);
 
     // 1. Línea Base Central Sutil
     drawCenterBaseline(ctx, w, midY, padX, minToX);
+
+    // Las ondas no sobresalen al principio: solo aparecen al presionar Play o avanzar en el tiempo
+    const shouldDrawWaves = state.showFullJourney || state.isPlaying || state.currentMinute > TIME_MIN;
+    const revealMinute = state.showFullJourney ? TIME_MAX : (shouldDrawWaves ? state.currentMinute : TIME_MIN - 1);
 
     // Clasificar registros por categoría
     const categoriesList = ["transito", "personas", "maquinarias", "naturaleza"];
@@ -629,25 +631,27 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryRecords[c].sort((a, b) => a.minute - b.minute);
     });
 
-    // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
-    // Se arma progresivamente a través del movimiento temporal
-    drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
+    if (shouldDrawWaves) {
+      // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
+      drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
 
-    // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
-    // Se arman progresivamente según avanza el slider, envolviendo sus nodos
-    categoriesList.forEach((catKey, catIndex) => {
-      if (!state.activeCategories[catKey]) return;
-      const records = categoryRecords[catKey];
-      if (records.length === 0) return;
+      // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
+      categoriesList.forEach((catKey, catIndex) => {
+        if (!state.activeCategories[catKey]) return;
+        const records = categoryRecords[catKey];
+        if (records.length === 0) return;
 
-      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
-    });
+        drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
+      });
+    }
 
     // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
     drawWeavingCursor(ctx, currentCursorX, midY, h);
 
     // 5. MODULAR AUDIO PROCEDURAL DEL PAISAJE SONORO
-    soundEngine.updateVolumes(state.currentMinute, state.activeCategories, categoryRecords);
+    if (state.isPlaying) {
+      soundEngine.updateVolumes(state.currentMinute, state.activeCategories, categoryRecords);
+    }
   }
 
   // =========================================================================
