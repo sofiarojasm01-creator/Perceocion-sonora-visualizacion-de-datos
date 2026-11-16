@@ -22,7 +22,8 @@
   --color-personas: #D97706;     /* Amarillo Mostaza Personas */
   --color-maquinarias: #EC4899;  /* Rosado Fucsia Maquinarias */
   --color-naturaleza: #06B6D4;   /* Cian Marino Naturaleza */
-  --color-decibel: #F97316;      /* Naranja Acústico Decibeles */
+  --color-decibel: #DC2626;      /* Rojo Acústico Decibeles */
+  --color-decibeles: #DC2626;    /* Rojo Acústico Decibeles */
 
   /* Tipografía Merriweather Sans unificada */
   --font-main: "Merriweather Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -428,7 +429,7 @@ h1, h2, h3, h4, h5, h6 {
 .tooltip-quantity-num {
   font-size: 0.84rem;
   font-weight: 800;
-  color: var(--color-personas);
+  /* Color asignado dinámicamente según el tipo de sonido */
 }
 
 /* Tarjeta de Decibeles (Ondas Inferiores) */

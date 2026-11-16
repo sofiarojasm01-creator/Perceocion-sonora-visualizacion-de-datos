@@ -6,7 +6,7 @@
  * - Personas: Amarillo Mostaza (#D97706)
  * - Maquinarias: Rosado (#EC4899)
  * - Naturaleza: Cian (#06B6D4)
- * - Decibeles: Naranja Acústico (#F97316)
+ * - Decibeles: Rojo Acústico (#DC2626)
  * Ondas fluidas orgánicas interpoladas con núcleos y comparación vertical
  */
 
@@ -502,11 +502,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const fuente = isEnc ? (item.fuente_dominante || "Sonido ambiental") : (item.fuente_predominante || "Sonido ambiental");
     tooltipFuenteName.textContent = fuente;
 
-    // Intensidad percibida por las personas en CANTIDAD (no porcentaje)
+    // Intensidad percibida por las personas en CANTIDAD (con el color de cada tipo de sonido)
     const levelKey = node.intensityLevel || "Media";
     const info = INTENSIDAD_CANTIDADES[levelKey] || INTENSIDAD_CANTIDADES["Media"];
     tooltipIntensityLevel.textContent = info.label;
+    tooltipIntensityLevel.style.color = color;
     tooltipQuantityVal.textContent = info.count;
+    tooltipQuantityVal.style.color = color; // Color del tipo de sonido
+
+    const intensityBox = document.getElementById("tooltip-intensity-box");
+    if (intensityBox) {
+      intensityBox.style.borderLeft = `3px solid ${color}`;
+    }
 
     // Posicionamiento inteligente y compacto
     const stage = document.getElementById("stage-container");
@@ -819,7 +826,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const numStrands = 32;
     const numSamples = 160;
-    const rgb = { r: 249, g: 115, b: 22 }; // Naranja Acústico
+    const rgb = { r: 220, g: 38, b: 38 }; // Rojo Acústico Decibeles (#DC2626)
 
     function getFluidDbDepth(minute) {
       let totalW = 0;
@@ -938,7 +945,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Centro del nodo
       ctx.beginPath();
       ctx.arc(x, y, isHovered ? 6.5 : 4.8, 0, Math.PI * 2);
-      ctx.fillStyle = isHovered ? "#EA580C" : "#F97316";
+      ctx.fillStyle = isHovered ? "#991B1B" : "#DC2626";
       ctx.fill();
 
       ctx.beginPath();
@@ -956,7 +963,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.beginPath();
         ctx.moveTo(x, y + 6);
         ctx.lineTo(x, y + labelYOffset - 8);
-        ctx.strokeStyle = "rgba(249, 115, 22, 0.35)";
+        ctx.strokeStyle = "rgba(220, 38, 38, 0.4)";
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -965,7 +972,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const dbVal = r.db_prom || 60;
       ctx.font = `800 10.5px 'Merriweather Sans', sans-serif`;
       ctx.textAlign = "center";
-      ctx.fillStyle = isHovered ? "#9A3412" : (isStaggered ? "#9A3412" : "#C2410C");
+      ctx.fillStyle = isHovered ? "#7F1D1D" : (isStaggered ? "#991B1B" : "#DC2626");
       ctx.fillText(`${dbVal.toFixed(0)} dB`, x, y + labelYOffset);
 
       ctx.restore();
@@ -1066,7 +1073,9 @@ document.addEventListener("DOMContentLoaded", () => {
       case "personas": return "#D97706";    // Amarillo Mostaza Personas
       case "maquinarias": return "#EC4899"; // Rosado Maquinarias
       case "naturaleza": return "#06B6D4";  // Cian Naturaleza
-      default: return "#F97316";
+      case "decibel":
+      case "decibeles": return "#DC2626";
+      default: return "#DC2626";
     }
   }
 
