@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     currentMinute: 580, // 09:40 hrs
     isPlaying: false,
-    showFullJourney: false,
+    showFullJourney: true,
     playbackTimer: null,
     activeCategories: {
       transito: true,
@@ -295,11 +295,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function setupSlider() {
     timeSlider.value = state.currentMinute;
     currentTimeText.textContent = formatMinute(state.currentMinute);
+    if (btnToggleJourney) { btnToggleJourney.classList.add('active'); btnToggleJourney.textContent = 'Ver avance progresivo'; }
 
     timeSlider.addEventListener("input", (e) => {
-      state.showFullJourney = false;
-      btnToggleJourney.classList.remove("active");
-      btnToggleJourney.textContent = "Ver todo el recorrido";
+      // Conservar visualizacion de ondas activas
+      // estado visual de recorrido mantenido
+      // texto mantenido
 
       const val = parseInt(e.target.value, 10);
       state.currentMinute = val;
@@ -309,9 +310,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".moment-chip").forEach(chip => {
       chip.addEventListener("click", () => {
-        state.showFullJourney = false;
-        btnToggleJourney.classList.remove("active");
-        btnToggleJourney.textContent = "Ver todo el recorrido";
+      // Conservar visualizacion de ondas activas
+      // estado visual de recorrido mantenido
+      // texto mantenido
 
         const val = timeToMinutes(chip.dataset.timeTarget);
         timeSlider.value = val;
@@ -323,9 +324,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tick-mark").forEach(tick => {
       tick.addEventListener("click", () => {
-        state.showFullJourney = false;
-        btnToggleJourney.classList.remove("active");
-        btnToggleJourney.textContent = "Ver todo el recorrido";
+      // Conservar visualizacion de ondas activas
+      // estado visual de recorrido mantenido
+      // texto mantenido
 
         const val = parseInt(tick.dataset.val, 10);
         timeSlider.value = val;
@@ -351,8 +352,8 @@ document.addEventListener("DOMContentLoaded", () => {
         timeSlider.value = TIME_MAX;
         currentTimeText.textContent = "Recorrido Completo (Día)";
       } else {
-        btnToggleJourney.classList.remove("active");
-        btnToggleJourney.textContent = "Ver todo el recorrido";
+      // estado visual de recorrido mantenido
+      // texto mantenido
         state.currentMinute = TIME_MIN;
         timeSlider.value = TIME_MIN;
         currentTimeText.textContent = formatMinute(state.currentMinute);
@@ -412,9 +413,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function togglePlayPause() {
     state.isPlaying = !state.isPlaying;
     if (state.isPlaying) {
-      state.showFullJourney = false;
-      btnToggleJourney.classList.remove("active");
-      btnToggleJourney.textContent = "Ver todo el recorrido";
+      // Conservar visualizacion de ondas activas
+      // estado visual de recorrido mantenido
+      // texto mantenido
 
       playIcon.style.display = "none";
       pauseIcon.style.display = "block";
@@ -609,11 +610,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Línea Base Central Sutil
     drawCenterBaseline(ctx, w, midY, padX, minToX);
 
-    // Las ondas no sobresalen al principio: solo aparecen al presionar Play o avanzar en el tiempo
-    const shouldDrawWaves = state.showFullJourney || state.isPlaying || state.currentMinute > TIME_MIN;
-    const revealMinute = state.showFullJourney ? TIME_MAX : (shouldDrawWaves ? state.currentMinute : TIME_MIN - 1);
+    // Las ondas sonoras se despliegan en el lienzo en todo momento
+    const revealMinute = state.showFullJourney ? TIME_MAX : Math.max(state.currentMinute, TIME_MIN);
 
-    // Clasificar registros por categoría
     const categoriesList = ["transito", "personas", "maquinarias", "naturaleza"];
     const categoryRecords = {
       transito: [],
@@ -654,7 +653,7 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryRecords[c].sort((a, b) => a.minute - b.minute);
     });
 
-    if (shouldDrawWaves) {
+    // 2. DIBUJAR ONDAS FLUIDAS ACTIVAS
       // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
       drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
 
@@ -666,7 +665,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
       });
-    }
+    // Fin dibujo ondas
 
     // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
     drawWeavingCursor(ctx, currentCursorX, midY, h);
@@ -802,8 +801,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Densidad y transparencia rica de acuarela visible
       const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
-      ctx.strokeStyle = 
-gba(, , , );
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      // alpha asignado
       ctx.lineWidth = 1.05;
       ctx.stroke();
     }
