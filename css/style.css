@@ -107,35 +107,51 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.08em;
 }
 
-/* Filtros de Ondas por Categoría Sonora */
+/* Filtros de Ondas por Categoría Sonora y Silenciadores */
 .top-categories-legend {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1.1rem;
 }
 
 .cat-legend-item {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.4rem;
+  font-family: var(--font-main);
   font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--text-main);
   cursor: pointer;
   user-select: none;
-  padding: 0.25rem 0.6rem;
+  padding: 0.3rem 0.65rem;
   border-radius: var(--radius-full);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.8);
   transition: all var(--transition-smooth);
 }
 
 .cat-legend-item:hover {
-  background: rgba(15, 23, 42, 0.03);
+  background: rgba(15, 23, 42, 0.05);
+  border-color: var(--border-medium);
 }
 
 .cat-legend-item.inactive {
-  opacity: 0.3;
+  opacity: 0.42;
   text-decoration: line-through;
+  background: rgba(15, 23, 42, 0.04);
+  border-color: transparent;
+}
+
+.cat-sound-icon {
+  font-size: 0.72rem;
+  margin-left: 0.2rem;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.cat-legend-item.inactive .cat-sound-icon {
+  opacity: 0.4;
+  filter: grayscale(1);
 }
 
 .cat-color-dot {
@@ -149,6 +165,35 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Botón Activar / Silenciar Audio Master */
+.btn-toggle-sound {
+  font-family: var(--font-main);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-full);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all var(--transition-smooth);
+}
+
+.btn-toggle-sound:hover {
+  background: var(--text-main);
+  color: #FFFFFF;
+}
+
+.btn-toggle-sound.muted {
+  color: var(--text-muted);
+  background: #FFFFFF;
+  border-color: var(--border-subtle);
+  opacity: 0.7;
 }
 
 /* Botón Ver Recorrido Completo */

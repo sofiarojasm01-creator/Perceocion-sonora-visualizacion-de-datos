@@ -21,27 +21,32 @@
         <h1 class="brand-title">Barrio Puerto Valparaíso</h1>
       </div>
 
-      <!-- Leyenda de Categorías Sonoras -->
-      <nav class="top-categories-legend" aria-label="Categorías sonoras">
-        <div class="cat-legend-item active" data-category="transito" title="Activar/Desactivar Tránsito">
+      <!-- Leyenda de Categorías Sonoras con Filtro y Silenciador -->
+      <nav class="top-categories-legend" aria-label="Categorías sonoras y silenciadores">
+        <div class="cat-legend-item active" data-category="transito" title="Clic para silenciar o activar Tránsito (Vehículos, micros)" role="button" tabindex="0">
           <span class="cat-color-dot" style="background-color: var(--color-transito);"></span>
-          <span>Tránsito</span>
+          <span class="cat-name">Tránsito</span>
+          <span class="cat-sound-icon" id="sound-icon-transito">🔊</span>
         </div>
-        <div class="cat-legend-item active" data-category="personas" title="Activar/Desactivar Personas">
+        <div class="cat-legend-item active" data-category="personas" title="Clic para silenciar o activar Personas (Voces, cantores, charlas)" role="button" tabindex="0">
           <span class="cat-color-dot" style="background-color: var(--color-personas);"></span>
-          <span>Personas</span>
+          <span class="cat-name">Personas</span>
+          <span class="cat-sound-icon" id="sound-icon-personas">🔊</span>
         </div>
-        <div class="cat-legend-item active" data-category="maquinarias" title="Activar/Desactivar Maquinarias">
+        <div class="cat-legend-item active" data-category="maquinarias" title="Clic para silenciar o activar Maquinarias (Lanchas, grúas, cortinas)" role="button" tabindex="0">
           <span class="cat-color-dot" style="background-color: var(--color-maquinarias);"></span>
-          <span>Maquinarias</span>
+          <span class="cat-name">Maquinarias</span>
+          <span class="cat-sound-icon" id="sound-icon-maquinarias">🔊</span>
         </div>
-        <div class="cat-legend-item active" data-category="naturaleza" title="Activar/Desactivar Naturaleza">
+        <div class="cat-legend-item active" data-category="naturaleza" title="Clic para silenciar o activar Naturaleza (Oleaje, viento marino)" role="button" tabindex="0">
           <span class="cat-color-dot" style="background-color: var(--color-naturaleza);"></span>
-          <span>Naturaleza</span>
+          <span class="cat-name">Naturaleza</span>
+          <span class="cat-sound-icon" id="sound-icon-naturaleza">🔊</span>
         </div>
       </nav>
 
       <div class="top-actions">
+        <button id="btn-toggle-sound" class="btn-toggle-sound" title="Activar / Silenciar audio del paisaje sonoro">🔊 Sonido ambiental</button>
         <button id="btn-toggle-journey" class="btn-toggle-journey" title="Ver todo el recorrido completo del día">Ver todo el recorrido</button>
         <a href="about.html" class="btn-about-link">Acerca del proyecto →</a>
       </div>

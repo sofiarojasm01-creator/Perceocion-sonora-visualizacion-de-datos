@@ -49,6 +49,361 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnToggleJourney = document.getElementById("btn-toggle-journey");
   const playIcon = document.getElementById("play-icon");
   const pauseIcon = document.getElementById("pause-icon");
+  const btnToggleSound = document.getElementById("btn-toggle-sound");
+
+  // =========================================================================
+  // MOTOR DE AUDIO PROCEDURAL DEL PAISAJE SONORO (Web Audio API)
+  // Genera en vivo las texturas sonoras reales de Barrio Puerto:
+  // - Tránsito: Motores diésel, aceleraciones, rodado de micros sobre adoquines
+  // - Personas: Murmullo de multitud, resonancias de formantes vocales, cantores
+  // - Maquinarias: Motores diésel de lanchas en Muelle Prat, grúas portuarias
+  // - Naturaleza: Oleaje del mar Pacífico, viento y brisa marina
+  // =========================================================================
+  const soundEngine = {
+    ctx: null,
+    isInitialized: false,
+    isMasterMuted: false,
+    masterGain: null,
+    categoryGains: {
+      transito: null,
+      personas: null,
+      maquinarias: null,
+      naturaleza: null
+    },
+    sources: [],
+
+    init() {
+      if (this.isInitialized) return;
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        this.ctx = new AudioContextClass();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.38, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+
+        this.setupTransito();
+        this.setupPersonas();
+        this.setupMaquinarias();
+        this.setupNaturaleza();
+
+        this.isInitialized = true;
+      } catch (err) {
+        console.warn("AudioContext no disponible o bloqueado", err);
+      }
+    },
+
+    resume() {
+      if (!this.isInitialized) {
+        this.init();
+      }
+      if (this.ctx && this.ctx.state === "suspended") {
+        this.ctx.resume();
+      }
+    },
+
+    createNoiseBuffer(type = "pink", duration = 4) {
+      const bufferSize = this.ctx.sampleRate * duration;
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      if (type === "pink") {
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+        }
+      } else if (type === "brown") {
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          data[i] = (lastOut + (0.02 * white)) / 1.02;
+          lastOut = data[i];
+          data[i] *= 3.5;
+        }
+      } else {
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+      }
+      return buffer;
+    },
+
+    setupTransito() {
+      const catGain = this.ctx.createGain();
+      catGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+      catGain.connect(this.masterGain);
+      this.categoryGains.transito = catGain;
+
+      // 1. Rodado grave continuo de micros y camiones
+      const brownBuf = this.createNoiseBuffer("brown", 5);
+      const brownSrc = this.ctx.createBufferSource();
+      brownSrc.buffer = brownBuf;
+      brownSrc.loop = true;
+
+      const lpFilter = this.ctx.createBiquadFilter();
+      lpFilter.type = "lowpass";
+      lpFilter.frequency.setValueAtTime(140, this.ctx.currentTime);
+
+      const rumbleGain = this.ctx.createGain();
+      rumbleGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+
+      brownSrc.connect(lpFilter);
+      lpFilter.connect(rumbleGain);
+      rumbleGain.connect(catGain);
+      brownSrc.start(0);
+      this.sources.push(brownSrc);
+
+      // 2. Fricción de neumáticos sobre pavimento y adoquines
+      const pinkBuf = this.createNoiseBuffer("pink", 4);
+      const pinkSrc = this.ctx.createBufferSource();
+      pinkSrc.buffer = pinkBuf;
+      pinkSrc.loop = true;
+
+      const bpFilter = this.ctx.createBiquadFilter();
+      bpFilter.type = "bandpass";
+      bpFilter.frequency.setValueAtTime(360, this.ctx.currentTime);
+      bpFilter.Q.setValueAtTime(1.4, this.ctx.currentTime);
+
+      const frictionGain = this.ctx.createGain();
+      frictionGain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+
+      pinkSrc.connect(bpFilter);
+      bpFilter.connect(frictionGain);
+      frictionGain.connect(catGain);
+      pinkSrc.start(0);
+      this.sources.push(pinkSrc);
+
+      // 3. Motor diésel grave de microbus porteño
+      const osc = this.ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(54, this.ctx.currentTime);
+
+      const engineFilter = this.ctx.createBiquadFilter();
+      engineFilter.type = "lowpass";
+      engineFilter.frequency.setValueAtTime(110, this.ctx.currentTime);
+
+      const engineGain = this.ctx.createGain();
+      engineGain.gain.setValueAtTime(0.28, this.ctx.currentTime);
+
+      osc.connect(engineFilter);
+      engineFilter.connect(engineGain);
+      engineGain.connect(catGain);
+      osc.start(0);
+      this.sources.push(osc);
+    },
+
+    setupPersonas() {
+      const catGain = this.ctx.createGain();
+      catGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+      catGain.connect(this.masterGain);
+      this.categoryGains.personas = catGain;
+
+      // Murmullo de multitud generado por ruido rosa a través de 3 formantes vocales humanos
+      const pinkBuf = this.createNoiseBuffer("pink", 5);
+      const pinkSrc = this.ctx.createBufferSource();
+      pinkSrc.buffer = pinkBuf;
+      pinkSrc.loop = true;
+
+      // Formante 1 (F1 ~ 480Hz)
+      const f1 = this.ctx.createBiquadFilter();
+      f1.type = "bandpass";
+      f1.frequency.setValueAtTime(480, this.ctx.currentTime);
+      f1.Q.setValueAtTime(4.5, this.ctx.currentTime);
+
+      // Formante 2 (F2 ~ 1250Hz)
+      const f2 = this.ctx.createBiquadFilter();
+      f2.type = "bandpass";
+      f2.frequency.setValueAtTime(1250, this.ctx.currentTime);
+      f2.Q.setValueAtTime(5.0, this.ctx.currentTime);
+
+      // Formante 3 (F3 ~ 2300Hz)
+      const f3 = this.ctx.createBiquadFilter();
+      f3.type = "bandpass";
+      f3.frequency.setValueAtTime(2300, this.ctx.currentTime);
+      f3.Q.setValueAtTime(4.0, this.ctx.currentTime);
+
+      const murmurGain = this.ctx.createGain();
+      murmurGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+
+      pinkSrc.connect(f1);
+      pinkSrc.connect(f2);
+      pinkSrc.connect(f3);
+      f1.connect(murmurGain);
+      f2.connect(murmurGain);
+      f3.connect(murmurGain);
+
+      // LFO lento para simular la cadencia conversacional de la gente
+      const lfo = this.ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.45, this.ctx.currentTime);
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+      lfo.connect(lfoGain.gain);
+
+      murmurGain.connect(catGain);
+      pinkSrc.start(0);
+      lfo.start(0);
+      this.sources.push(pinkSrc, lfo);
+    },
+
+    setupMaquinarias() {
+      const catGain = this.ctx.createGain();
+      catGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+      catGain.connect(this.masterGain);
+      this.categoryGains.maquinarias = catGain;
+
+      // 1. Motor diésel naval de lanchas de paseo en Muelle Prat (Chug rítmico)
+      const boatOsc = this.ctx.createOscillator();
+      boatOsc.type = "triangle";
+      boatOsc.frequency.setValueAtTime(36, this.ctx.currentTime);
+
+      const boatFilter = this.ctx.createBiquadFilter();
+      boatFilter.type = "lowpass";
+      boatFilter.frequency.setValueAtTime(160, this.ctx.currentTime);
+
+      const pulseLfo = this.ctx.createOscillator();
+      pulseLfo.type = "square";
+      pulseLfo.frequency.setValueAtTime(3.4, this.ctx.currentTime); // 3.4 pulsos/segundo
+
+      const pulseGain = this.ctx.createGain();
+      pulseGain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+      pulseLfo.connect(pulseGain.gain);
+
+      boatOsc.connect(boatFilter);
+      boatFilter.connect(pulseGain);
+      pulseGain.connect(catGain);
+      boatOsc.start(0);
+      pulseLfo.start(0);
+      this.sources.push(boatOsc, pulseLfo);
+
+      // 2. Resonancia metálica de grúas portuarias y cables navales
+      const noiseBuf = this.createNoiseBuffer("pink", 4);
+      const noiseSrc = this.ctx.createBufferSource();
+      noiseSrc.buffer = noiseBuf;
+      noiseSrc.loop = true;
+
+      const metalFilter = this.ctx.createBiquadFilter();
+      metalFilter.type = "bandpass";
+      metalFilter.frequency.setValueAtTime(780, this.ctx.currentTime);
+      metalFilter.Q.setValueAtTime(7.0, this.ctx.currentTime);
+
+      const metalGain = this.ctx.createGain();
+      metalGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+
+      noiseSrc.connect(metalFilter);
+      metalFilter.connect(metalGain);
+      metalGain.connect(catGain);
+      noiseSrc.start(0);
+      this.sources.push(noiseSrc);
+    },
+
+    setupNaturaleza() {
+      const catGain = this.ctx.createGain();
+      catGain.gain.setValueAtTime(0.24, this.ctx.currentTime);
+      catGain.connect(this.masterGain);
+      this.categoryGains.naturaleza = catGain;
+
+      // Oleaje continuo del mar Pacífico y brisa marina
+      const pinkBuf = this.createNoiseBuffer("pink", 6);
+      const pinkSrc = this.ctx.createBufferSource();
+      pinkSrc.buffer = pinkBuf;
+      pinkSrc.loop = true;
+
+      // Filtro que barre suavemente simulando el ir y venir de las olas
+      const waveFilter = this.ctx.createBiquadFilter();
+      waveFilter.type = "lowpass";
+      waveFilter.frequency.setValueAtTime(350, this.ctx.currentTime);
+
+      // LFO para el vaivén del oleaje (ciclo de 5.8 segundos)
+      const waveLfo = this.ctx.createOscillator();
+      waveLfo.frequency.setValueAtTime(1 / 5.8, this.ctx.currentTime);
+
+      const waveLfoGain = this.ctx.createGain();
+      waveLfoGain.gain.setValueAtTime(260, this.ctx.currentTime);
+      waveLfo.connect(waveLfoGain);
+      waveLfoGain.connect(waveFilter.frequency);
+
+      const surfGain = this.ctx.createGain();
+      surfGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
+
+      pinkSrc.connect(waveFilter);
+      waveFilter.connect(surfGain);
+      surfGain.connect(catGain);
+
+      // Brisa marina en altas frecuencias
+      const breezeFilter = this.ctx.createBiquadFilter();
+      breezeFilter.type = "highpass";
+      breezeFilter.frequency.setValueAtTime(2800, this.ctx.currentTime);
+      const breezeGain = this.ctx.createGain();
+      breezeGain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+
+      pinkSrc.connect(breezeFilter);
+      breezeFilter.connect(breezeGain);
+      breezeGain.connect(catGain);
+
+      pinkSrc.start(0);
+      waveLfo.start(0);
+      this.sources.push(pinkSrc, waveLfo);
+    },
+
+    updateVolumes(currentMinute, activeCategories, recordsByCategory) {
+      if (!this.isInitialized || !this.ctx) return;
+      const now = this.ctx.currentTime;
+
+      const categories = ["transito", "personas", "maquinarias", "naturaleza"];
+      categories.forEach(cat => {
+        const gainNode = this.categoryGains[cat];
+        if (!gainNode) return;
+
+        if (!activeCategories[cat] || this.isMasterMuted) {
+          gainNode.gain.setTargetAtTime(0.0001, now, 0.15);
+          return;
+        }
+
+        const recs = (recordsByCategory && recordsByCategory[cat]) || [];
+        let maxCalibre = 0;
+        let count = 0;
+
+        for (const r of recs) {
+          const diff = Math.abs(currentMinute - r.minute);
+          if (diff <= 35) {
+            if (r.calibre > maxCalibre) maxCalibre = r.calibre;
+            count++;
+          }
+        }
+
+        let targetVol = 0.16;
+        if (cat === "transito") {
+          targetVol = maxCalibre === 95 ? 0.55 : (maxCalibre === 70 ? 0.35 : 0.18);
+        } else if (cat === "personas") {
+          targetVol = maxCalibre === 95 ? 0.48 : (maxCalibre === 70 ? 0.32 : 0.16);
+        } else if (cat === "maquinarias") {
+          targetVol = maxCalibre === 95 ? 0.50 : (maxCalibre === 70 ? 0.28 : 0.12);
+        } else if (cat === "naturaleza") {
+          targetVol = 0.26;
+        }
+
+        gainNode.gain.setTargetAtTime(targetVol, now, 0.2);
+      });
+    },
+
+    toggleMasterMute() {
+      if (!this.isInitialized) {
+        this.init();
+      }
+      this.isMasterMuted = !this.isMasterMuted;
+      const now = this.ctx.currentTime;
+      this.masterGain.gain.setTargetAtTime(this.isMasterMuted ? 0.0001 : 0.38, now, 0.15);
+      return !this.isMasterMuted;
+    }
+  };
 
   // Tooltip
   const tooltip = document.getElementById("node-tooltip");
@@ -109,6 +464,7 @@ document.addEventListener("DOMContentLoaded", () => {
     currentTimeText.textContent = formatMinute(state.currentMinute);
 
     timeSlider.addEventListener("input", (e) => {
+      soundEngine.resume();
       state.showFullJourney = false;
       btnToggleJourney.classList.remove("active");
       btnToggleJourney.textContent = "Ver todo el recorrido";
@@ -121,6 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".moment-chip").forEach(chip => {
       chip.addEventListener("click", () => {
+        soundEngine.resume();
         state.showFullJourney = false;
         btnToggleJourney.classList.remove("active");
         btnToggleJourney.textContent = "Ver todo el recorrido";
@@ -135,6 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tick-mark").forEach(tick => {
       tick.addEventListener("click", () => {
+        soundEngine.resume();
         state.showFullJourney = false;
         btnToggleJourney.classList.remove("active");
         btnToggleJourney.textContent = "Ver todo el recorrido";
@@ -149,13 +507,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setupEvents() {
-    btnPlayPause.addEventListener("click", togglePlayPause);
+    btnPlayPause.addEventListener("click", () => {
+      soundEngine.resume();
+      togglePlayPause();
+    });
 
     btnToggleJourney.addEventListener("click", () => {
+      soundEngine.resume();
       state.showFullJourney = !state.showFullJourney;
       if (state.showFullJourney) {
         btnToggleJourney.classList.add("active");
-        btnToggleJourney.textContent = "Modo temporal progresivo";
+        btnToggleJourney.textContent = "Modo progresivo (Armar onda)";
         if (state.isPlaying) togglePlayPause();
         state.currentMinute = TIME_MAX;
         timeSlider.value = TIME_MAX;
@@ -163,17 +525,39 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         btnToggleJourney.classList.remove("active");
         btnToggleJourney.textContent = "Ver todo el recorrido";
+        state.currentMinute = TIME_MIN;
+        timeSlider.value = TIME_MIN;
         currentTimeText.textContent = formatMinute(state.currentMinute);
       }
     });
 
-    // Filtros de categorías
+    // Filtros de categorías y silenciadores individuales
     document.querySelectorAll(".cat-legend-item").forEach(item => {
       item.addEventListener("click", () => {
+        soundEngine.resume();
         const cat = item.dataset.category;
         state.activeCategories[cat] = !state.activeCategories[cat];
         item.classList.toggle("inactive", !state.activeCategories[cat]);
+
+        const iconEl = item.querySelector(".cat-sound-icon");
+        if (iconEl) {
+          iconEl.textContent = state.activeCategories[cat] ? "🔊" : "🔇";
+        }
       });
+    });
+
+    // Botón Master de Sonido
+    if (btnToggleSound) {
+      btnToggleSound.addEventListener("click", () => {
+        soundEngine.resume();
+        const isActive = soundEngine.toggleMasterMute();
+        btnToggleSound.classList.toggle("muted", !isActive);
+        btnToggleSound.textContent = isActive ? "🔊 Sonido ambiental" : "🔇 Sonido silenciado";
+      });
+    }
+
+    canvas.addEventListener("click", () => {
+      soundEngine.resume();
     });
 
     canvas.addEventListener("mousemove", handleCanvasMouseMove);
@@ -374,8 +758,9 @@ document.addEventListener("DOMContentLoaded", () => {
       return padX + norm * usableW;
     }
 
-    const limitMinute = state.showFullJourney ? TIME_MAX : state.currentMinute;
-    const limitX = minToX(limitMinute);
+    const currentCursorX = minToX(state.currentMinute);
+    // Límite temporal progresivo: las ondas se van armando a medida que avanza el slider
+    const revealMinute = state.showFullJourney ? TIME_MAX : Math.max(TIME_MIN + 25, state.currentMinute);
 
     // 1. Línea Base Central Sutil
     drawCenterBaseline(ctx, w, midY, padX, minToX);
@@ -422,29 +807,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
-    // Siempre visible a lo largo de toda la jornada (09:40 a 18:50)
-    drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase);
+    // Se arma progresivamente a través del movimiento temporal
+    drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
 
     // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
-    // Cada onda se dibuja completa a lo largo del tiempo, envolviendo sus nodos
+    // Se arman progresivamente según avanza el slider, envolviendo sus nodos
     categoriesList.forEach((catKey, catIndex) => {
       if (!state.activeCategories[catKey]) return;
       const records = categoryRecords[catKey];
       if (records.length === 0) return;
 
-      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex);
+      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
     });
 
     // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
     drawWeavingCursor(ctx, currentCursorX, midY, h);
+
+    // 5. MODULAR AUDIO PROCEDURAL DEL PAISAJE SONORO
+    soundEngine.updateVolumes(state.currentMinute, state.activeCategories, categoryRecords);
   }
 
   // =========================================================================
   // GENERADOR DE ONDAS FLUIDAS CONTINUAS Y NODOS EMBEBIDOS
-  // (Las ondas siguen los nodos, suben a sus crestas y los envuelven sin que
-  //  ningún nodo quede por encima de la onda)
+  // (Las ondas siguen los nodos, suben a sus crestas y se van armando progresivamente)
   // =========================================================================
-  function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, phase, catIdx) {
+  function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, phase, catIdx, revealMinute) {
     const colorHex = getCategoryColor(cat);
     const rgb = hexToRgb(colorHex);
 
@@ -519,7 +906,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return { spineY, env };
     }
 
-    // 3. Dibujar todos los filamentos de seda que componen la onda fluida a lo largo de todo el día
+    // 3. Dibujar todos los filamentos de seda que componen la onda fluida progresiva
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
 
@@ -533,6 +920,8 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let p = 0; p <= numSamples; p++) {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
+        if (minute > revealMinute) break; // Se arma progresivamente
+
         const x = padX + tNorm * usableW;
         const { spineY, env } = getSpineAt(tNorm, minute, strandPhase);
 
@@ -557,10 +946,10 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.restore();
 
     // 4. DIBUJAR LOS NODOS EN LAS CRESTAS
-    // Los nodos se ubican en el centro exacto del espinazo de la onda (spineY),
-    // garantizando que las hebras superiores del listón pasen SIEMPRE por encima de ellos
-    // y que la onda siga milimétricamente cada nodo sin que queden flotando arriba.
+    // Los nodos aparecen a medida que la onda los alcanza cronológicamente
     records.forEach(rec => {
+      if (rec.minute > revealMinute) return; // Aparecen de a poco con el avance temporal
+
       const normT = (rec.minute - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
 
@@ -597,7 +986,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================================================================
   // ONDA INFERIOR DE DECIBELES MEDIDOS (Fluida hacia abajo)
   // =========================================================================
-  function drawDecibelFluidWave(ctx, midY, padX, usableW, phase) {
+  function drawDecibelFluidWave(ctx, midY, padX, usableW, phase, revealMinute) {
     if (!PROJECT_DATA) return;
     const records = PROJECT_DATA.fichas_campo;
 
@@ -638,6 +1027,8 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let p = 0; p <= numSamples; p++) {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
+        if (minute > revealMinute) break; // Se arma progresivamente
+
         const x = padX + tNorm * usableW;
         const depth = getFluidDbDepth(minute);
 
