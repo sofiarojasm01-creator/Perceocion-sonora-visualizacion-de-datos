@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PAISAJE SONORO DEL BARRIO PUERTO — VALPARAÍSO
  * Ondas Fluidas de Filamentos Generativos (Seda / Guilloché / Moiré)
  * Paleta Oficial:
@@ -52,345 +52,158 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnToggleSound = document.getElementById("btn-toggle-sound");
 
   // =========================================================================
-  // MOTOR DE AUDIO PROCEDURAL DEL PAISAJE SONORO (Web Audio API)
-  // Genera en vivo las texturas sonoras reales de Barrio Puerto:
-  // - Tránsito: Motores diésel, aceleraciones, rodado de micros sobre adoquines
-  // - Personas: Murmullo de multitud, resonancias de formantes vocales, cantores
-  // - Maquinarias: Motores diésel de lanchas en Muelle Prat, grúas portuarias
-  // - Naturaleza: Oleaje del mar Pacífico, viento y brisa marina
+  // MOTOR DE AUDIO DEL PAISAJE SONORO (BARRIO PUERTO VALPARAÍSO)
+  // Reproduce simultáneamente las grabaciones de campo reales de Barrio Puerto:
+  // - Tránsito: "assets/sonidos/video transito.mp3"
+  // - Personas: "assets/sonidos/video personas sonido.mp3"
+  // - Maquinarias: "assets/sonidos/video maquinarias.mp3"
+  // - Naturaleza: "assets/sonidos/video naturaleza.mp3"
+  //
+  // Todas suenan al mismo tiempo en capas armónicas y suaves, moduladas
+  // dinámicamente según la información de los datos y el slider de tiempo.
   // =========================================================================
   const soundEngine = {
-    ctx: null,
     isInitialized: false,
     isMasterMuted: false,
-    masterGain: null,
-    categoryGains: {
-      transito: null,
-      personas: null,
-      maquinarias: null,
-      naturaleza: null
+    masterVolume: 0.36, // Nivel global suave y relajante, nunca estridente ni molesto
+    hasUserStarted: false,
+
+    tracks: {
+      transito: {
+        id: "audio-transito",
+        src: "assets/sonidos/video transito.mp3",
+        audio: null,
+        baseWeight: 0.28, // Tránsito: 32.8% en datos (mayor presencia sonora en Barrio Puerto)
+        currentVol: 0.0,
+        targetVol: 0.0
+      },
+      personas: {
+        id: "audio-personas",
+        src: "assets/sonidos/video personas sonido.mp3",
+        audio: null,
+        baseWeight: 0.25, // Personas: 31.3% en datos (voces, pregones, ambiente de calle)
+        currentVol: 0.0,
+        targetVol: 0.0
+      },
+      maquinarias: {
+        id: "audio-maquinarias",
+        src: "assets/sonidos/video maquinarias.mp3",
+        audio: null,
+        baseWeight: 0.18, // Maquinarias: 22.5% en datos (motores de lanchas, grúas portuarias)
+        currentVol: 0.0,
+        targetVol: 0.0
+      },
+      naturaleza: {
+        id: "audio-naturaleza",
+        src: "assets/sonidos/video naturaleza.mp3",
+        audio: null,
+        baseWeight: 0.055, // Naturaleza: 13.4% en datos (volumen más bajo por ser el menos escuchado según los datos)
+        currentVol: 0.0,
+        targetVol: 0.0
+      }
     },
-    sources: [],
 
     init() {
       if (this.isInitialized) return;
-      try {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContextClass) return;
-        this.ctx = new AudioContextClass();
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.setValueAtTime(0.38, this.ctx.currentTime);
-        this.masterGain.connect(this.ctx.destination);
 
-        this.setupTransito();
-        this.setupPersonas();
-        this.setupMaquinarias();
-        this.setupNaturaleza();
+      for (const cat in this.tracks) {
+        const item = this.tracks[cat];
+        let el = document.getElementById(item.id);
+        if (!el) {
+          el = new Audio(item.src);
+          el.id = item.id;
+        }
+        el.loop = true;
+        el.preload = "auto";
+        el.volume = 0; // Comienza silenciado hasta modulación suave
+        item.audio = el;
 
-        this.isInitialized = true;
-      } catch (err) {
-        console.warn("AudioContext no disponible o bloqueado", err);
+        // Reinicio automático en bucle continuo sin interrupciones
+        el.addEventListener("ended", () => {
+          el.currentTime = 0;
+          el.play().catch(() => {});
+        });
       }
+
+      this.isInitialized = true;
     },
 
     resume() {
       if (!this.isInitialized) {
         this.init();
       }
-      if (this.ctx && this.ctx.state === "suspended") {
-        this.ctx.resume();
-      }
-    },
 
-    createNoiseBuffer(type = "pink", duration = 4) {
-      const bufferSize = this.ctx.sampleRate * duration;
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
+      this.hasUserStarted = true;
 
-      if (type === "pink") {
-        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          b0 = 0.99886 * b0 + white * 0.0555179;
-          b1 = 0.99332 * b1 + white * 0.0750759;
-          b2 = 0.96900 * b2 + white * 0.1538520;
-          b3 = 0.86650 * b3 + white * 0.3104856;
-          b4 = 0.55000 * b4 + white * 0.5329522;
-          b5 = -0.7616 * b5 - white * 0.0168980;
-          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-          b6 = white * 0.115926;
-        }
-      } else if (type === "brown") {
-        let lastOut = 0.0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          data[i] = (lastOut + (0.02 * white)) / 1.02;
-          lastOut = data[i];
-          data[i] *= 3.5;
-        }
-      } else {
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = Math.random() * 2 - 1;
+      // Iniciar reproducción simultánea de todas las pistas de audio
+      for (const cat in this.tracks) {
+        const item = this.tracks[cat];
+        if (item.audio && item.audio.paused) {
+          item.audio.play().catch(() => {
+            // Se desbloquea con la primera interacción del usuario en la página
+          });
         }
       }
-      return buffer;
-    },
-
-    setupTransito() {
-      const catGain = this.ctx.createGain();
-      catGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-      catGain.connect(this.masterGain);
-      this.categoryGains.transito = catGain;
-
-      // 1. Rodado grave continuo de micros y camiones
-      const brownBuf = this.createNoiseBuffer("brown", 5);
-      const brownSrc = this.ctx.createBufferSource();
-      brownSrc.buffer = brownBuf;
-      brownSrc.loop = true;
-
-      const lpFilter = this.ctx.createBiquadFilter();
-      lpFilter.type = "lowpass";
-      lpFilter.frequency.setValueAtTime(140, this.ctx.currentTime);
-
-      const rumbleGain = this.ctx.createGain();
-      rumbleGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
-
-      brownSrc.connect(lpFilter);
-      lpFilter.connect(rumbleGain);
-      rumbleGain.connect(catGain);
-      brownSrc.start(0);
-      this.sources.push(brownSrc);
-
-      // 2. Fricción de neumáticos sobre pavimento y adoquines
-      const pinkBuf = this.createNoiseBuffer("pink", 4);
-      const pinkSrc = this.ctx.createBufferSource();
-      pinkSrc.buffer = pinkBuf;
-      pinkSrc.loop = true;
-
-      const bpFilter = this.ctx.createBiquadFilter();
-      bpFilter.type = "bandpass";
-      bpFilter.frequency.setValueAtTime(360, this.ctx.currentTime);
-      bpFilter.Q.setValueAtTime(1.4, this.ctx.currentTime);
-
-      const frictionGain = this.ctx.createGain();
-      frictionGain.gain.setValueAtTime(0.4, this.ctx.currentTime);
-
-      pinkSrc.connect(bpFilter);
-      bpFilter.connect(frictionGain);
-      frictionGain.connect(catGain);
-      pinkSrc.start(0);
-      this.sources.push(pinkSrc);
-
-      // 3. Motor diésel grave de microbus porteño
-      const osc = this.ctx.createOscillator();
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(54, this.ctx.currentTime);
-
-      const engineFilter = this.ctx.createBiquadFilter();
-      engineFilter.type = "lowpass";
-      engineFilter.frequency.setValueAtTime(110, this.ctx.currentTime);
-
-      const engineGain = this.ctx.createGain();
-      engineGain.gain.setValueAtTime(0.28, this.ctx.currentTime);
-
-      osc.connect(engineFilter);
-      engineFilter.connect(engineGain);
-      engineGain.connect(catGain);
-      osc.start(0);
-      this.sources.push(osc);
-    },
-
-    setupPersonas() {
-      const catGain = this.ctx.createGain();
-      catGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
-      catGain.connect(this.masterGain);
-      this.categoryGains.personas = catGain;
-
-      // Murmullo de multitud generado por ruido rosa a través de 3 formantes vocales humanos
-      const pinkBuf = this.createNoiseBuffer("pink", 5);
-      const pinkSrc = this.ctx.createBufferSource();
-      pinkSrc.buffer = pinkBuf;
-      pinkSrc.loop = true;
-
-      // Formante 1 (F1 ~ 480Hz)
-      const f1 = this.ctx.createBiquadFilter();
-      f1.type = "bandpass";
-      f1.frequency.setValueAtTime(480, this.ctx.currentTime);
-      f1.Q.setValueAtTime(4.5, this.ctx.currentTime);
-
-      // Formante 2 (F2 ~ 1250Hz)
-      const f2 = this.ctx.createBiquadFilter();
-      f2.type = "bandpass";
-      f2.frequency.setValueAtTime(1250, this.ctx.currentTime);
-      f2.Q.setValueAtTime(5.0, this.ctx.currentTime);
-
-      // Formante 3 (F3 ~ 2300Hz)
-      const f3 = this.ctx.createBiquadFilter();
-      f3.type = "bandpass";
-      f3.frequency.setValueAtTime(2300, this.ctx.currentTime);
-      f3.Q.setValueAtTime(4.0, this.ctx.currentTime);
-
-      const murmurGain = this.ctx.createGain();
-      murmurGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
-
-      pinkSrc.connect(f1);
-      pinkSrc.connect(f2);
-      pinkSrc.connect(f3);
-      f1.connect(murmurGain);
-      f2.connect(murmurGain);
-      f3.connect(murmurGain);
-
-      // LFO lento para simular la cadencia conversacional de la gente
-      const lfo = this.ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.45, this.ctx.currentTime);
-      const lfoGain = this.ctx.createGain();
-      lfoGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-      lfo.connect(lfoGain.gain);
-
-      murmurGain.connect(catGain);
-      pinkSrc.start(0);
-      lfo.start(0);
-      this.sources.push(pinkSrc, lfo);
-    },
-
-    setupMaquinarias() {
-      const catGain = this.ctx.createGain();
-      catGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
-      catGain.connect(this.masterGain);
-      this.categoryGains.maquinarias = catGain;
-
-      // 1. Motor diésel naval de lanchas de paseo en Muelle Prat (Chug rítmico)
-      const boatOsc = this.ctx.createOscillator();
-      boatOsc.type = "triangle";
-      boatOsc.frequency.setValueAtTime(36, this.ctx.currentTime);
-
-      const boatFilter = this.ctx.createBiquadFilter();
-      boatFilter.type = "lowpass";
-      boatFilter.frequency.setValueAtTime(160, this.ctx.currentTime);
-
-      const pulseLfo = this.ctx.createOscillator();
-      pulseLfo.type = "square";
-      pulseLfo.frequency.setValueAtTime(3.4, this.ctx.currentTime); // 3.4 pulsos/segundo
-
-      const pulseGain = this.ctx.createGain();
-      pulseGain.gain.setValueAtTime(0.4, this.ctx.currentTime);
-      pulseLfo.connect(pulseGain.gain);
-
-      boatOsc.connect(boatFilter);
-      boatFilter.connect(pulseGain);
-      pulseGain.connect(catGain);
-      boatOsc.start(0);
-      pulseLfo.start(0);
-      this.sources.push(boatOsc, pulseLfo);
-
-      // 2. Resonancia metálica de grúas portuarias y cables navales
-      const noiseBuf = this.createNoiseBuffer("pink", 4);
-      const noiseSrc = this.ctx.createBufferSource();
-      noiseSrc.buffer = noiseBuf;
-      noiseSrc.loop = true;
-
-      const metalFilter = this.ctx.createBiquadFilter();
-      metalFilter.type = "bandpass";
-      metalFilter.frequency.setValueAtTime(780, this.ctx.currentTime);
-      metalFilter.Q.setValueAtTime(7.0, this.ctx.currentTime);
-
-      const metalGain = this.ctx.createGain();
-      metalGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-
-      noiseSrc.connect(metalFilter);
-      metalFilter.connect(metalGain);
-      metalGain.connect(catGain);
-      noiseSrc.start(0);
-      this.sources.push(noiseSrc);
-    },
-
-    setupNaturaleza() {
-      const catGain = this.ctx.createGain();
-      catGain.gain.setValueAtTime(0.24, this.ctx.currentTime);
-      catGain.connect(this.masterGain);
-      this.categoryGains.naturaleza = catGain;
-
-      // Oleaje continuo del mar Pacífico y brisa marina
-      const pinkBuf = this.createNoiseBuffer("pink", 6);
-      const pinkSrc = this.ctx.createBufferSource();
-      pinkSrc.buffer = pinkBuf;
-      pinkSrc.loop = true;
-
-      // Filtro que barre suavemente simulando el ir y venir de las olas
-      const waveFilter = this.ctx.createBiquadFilter();
-      waveFilter.type = "lowpass";
-      waveFilter.frequency.setValueAtTime(350, this.ctx.currentTime);
-
-      // LFO para el vaivén del oleaje (ciclo de 5.8 segundos)
-      const waveLfo = this.ctx.createOscillator();
-      waveLfo.frequency.setValueAtTime(1 / 5.8, this.ctx.currentTime);
-
-      const waveLfoGain = this.ctx.createGain();
-      waveLfoGain.gain.setValueAtTime(260, this.ctx.currentTime);
-      waveLfo.connect(waveLfoGain);
-      waveLfoGain.connect(waveFilter.frequency);
-
-      const surfGain = this.ctx.createGain();
-      surfGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
-
-      pinkSrc.connect(waveFilter);
-      waveFilter.connect(surfGain);
-      surfGain.connect(catGain);
-
-      // Brisa marina en altas frecuencias
-      const breezeFilter = this.ctx.createBiquadFilter();
-      breezeFilter.type = "highpass";
-      breezeFilter.frequency.setValueAtTime(2800, this.ctx.currentTime);
-      const breezeGain = this.ctx.createGain();
-      breezeGain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-
-      pinkSrc.connect(breezeFilter);
-      breezeFilter.connect(breezeGain);
-      breezeGain.connect(catGain);
-
-      pinkSrc.start(0);
-      waveLfo.start(0);
-      this.sources.push(pinkSrc, waveLfo);
     },
 
     updateVolumes(currentMinute, activeCategories, recordsByCategory) {
-      if (!this.isInitialized || !this.ctx) return;
-      const now = this.ctx.currentTime;
+      if (!this.isInitialized) {
+        this.init();
+      }
 
       const categories = ["transito", "personas", "maquinarias", "naturaleza"];
+
       categories.forEach(cat => {
-        const gainNode = this.categoryGains[cat];
-        if (!gainNode) return;
+        const item = this.tracks[cat];
+        if (!item || !item.audio) return;
 
+        // Si la categoría fue silenciada en el filtro superior o el botón general está silenciado:
         if (!activeCategories[cat] || this.isMasterMuted) {
-          gainNode.gain.setTargetAtTime(0.0001, now, 0.15);
-          return;
-        }
+          item.targetVol = 0.0;
+        } else {
+          // Modulación guiada por la presencia e intensidad de datos en ese horario
+          const recs = (recordsByCategory && recordsByCategory[cat]) || [];
+          let maxCalibre = 0;
+          let nearbyCount = 0;
 
-        const recs = (recordsByCategory && recordsByCategory[cat]) || [];
-        let maxCalibre = 0;
-        let count = 0;
+          for (const r of recs) {
+            const diff = Math.abs(currentMinute - r.minute);
+            if (diff <= 40) {
+              nearbyCount++;
+              if (r.calibre > maxCalibre) maxCalibre = r.calibre;
+            }
+          }
 
-        for (const r of recs) {
-          const diff = Math.abs(currentMinute - r.minute);
-          if (diff <= 35) {
-            if (r.calibre > maxCalibre) maxCalibre = r.calibre;
-            count++;
+          // Factor de intensidad según el calibre de percepción ciudadana
+          let intensityFactor = 0.85; // Presencia basal suave
+          if (nearbyCount > 0) {
+            if (maxCalibre === 95) {
+              intensityFactor = 1.30; // Nivel Alto (picos de flujo vial, concentraciones humanas)
+            } else if (maxCalibre === 70) {
+              intensityFactor = 1.10; // Nivel Medio
+            } else {
+              intensityFactor = 0.95; // Nivel Bajo
+            }
+          }
+
+          // Modulación específica según hallazgos del estudio:
+          // Naturaleza (13.4% en datos) se mantiene siempre en un volumen más bajo y suave
+          if (cat === "naturaleza") {
+            const oceanPresence = nearbyCount > 0 ? 0.075 : 0.040;
+            item.targetVol = oceanPresence;
+          } else {
+            item.targetVol = Math.min(0.38, Math.max(0.08, item.baseWeight * intensityFactor));
           }
         }
 
-        let targetVol = 0.16;
-        if (cat === "transito") {
-          targetVol = maxCalibre === 95 ? 0.55 : (maxCalibre === 70 ? 0.35 : 0.18);
-        } else if (cat === "personas") {
-          targetVol = maxCalibre === 95 ? 0.48 : (maxCalibre === 70 ? 0.32 : 0.16);
-        } else if (cat === "maquinarias") {
-          targetVol = maxCalibre === 95 ? 0.50 : (maxCalibre === 70 ? 0.28 : 0.12);
-        } else if (cat === "naturaleza") {
-          targetVol = 0.26;
-        }
+        // Interpolación fluida (fade orgánico entre frames)
+        const ease = 0.07;
+        item.currentVol += (item.targetVol - item.currentVol) * ease;
+        const actualVol = Math.max(0, Math.min(1, item.currentVol * this.masterVolume));
 
-        gainNode.gain.setTargetAtTime(targetVol, now, 0.2);
+        try {
+          item.audio.volume = actualVol;
+        } catch (e) {}
       });
     },
 
@@ -399,8 +212,10 @@ document.addEventListener("DOMContentLoaded", () => {
         this.init();
       }
       this.isMasterMuted = !this.isMasterMuted;
-      const now = this.ctx.currentTime;
-      this.masterGain.gain.setTargetAtTime(this.isMasterMuted ? 0.0001 : 0.38, now, 0.15);
+
+      if (!this.isMasterMuted) {
+        this.resume();
+      }
       return !this.isMasterMuted;
     }
   };
@@ -555,6 +370,11 @@ document.addEventListener("DOMContentLoaded", () => {
         btnToggleSound.textContent = isActive ? "🔊 Sonido ambiental" : "🔇 Sonido silenciado";
       });
     }
+
+    // Iniciar reproducción simultánea en la interacción del usuario
+    document.addEventListener("pointerdown", () => {
+      soundEngine.resume();
+    });
 
     canvas.addEventListener("click", () => {
       soundEngine.resume();
