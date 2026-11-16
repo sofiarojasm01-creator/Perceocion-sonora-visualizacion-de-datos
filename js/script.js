@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     currentMinute: 580, // 09:40 hrs
     isPlaying: false,
-    showFullJourney: true,
+    showFullJourney: false,
     playbackTimer: null,
     activeCategories: {
       transito: true,
@@ -295,10 +295,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function setupSlider() {
     timeSlider.value = state.currentMinute;
     currentTimeText.textContent = formatMinute(state.currentMinute);
-    if (btnToggleJourney) { btnToggleJourney.classList.add('active'); btnToggleJourney.textContent = 'Ver avance progresivo'; }
+    currentTimeText.textContent = formatMinute(state.currentMinute);
 
     timeSlider.addEventListener("input", (e) => {
-      // Conservar visualizacion de ondas activas
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
       // estado visual de recorrido mantenido
       // texto mantenido
 
@@ -310,7 +311,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".moment-chip").forEach(chip => {
       chip.addEventListener("click", () => {
-      // Conservar visualizacion de ondas activas
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
       // estado visual de recorrido mantenido
       // texto mantenido
 
@@ -324,7 +326,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tick-mark").forEach(tick => {
       tick.addEventListener("click", () => {
-      // Conservar visualizacion de ondas activas
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
       // estado visual de recorrido mantenido
       // texto mantenido
 
@@ -413,7 +416,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function togglePlayPause() {
     state.isPlaying = !state.isPlaying;
     if (state.isPlaying) {
-      // Conservar visualizacion de ondas activas
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
       // estado visual de recorrido mantenido
       // texto mantenido
 
@@ -610,8 +614,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Línea Base Central Sutil
     drawCenterBaseline(ctx, w, midY, padX, minToX);
 
-    // Las ondas sonoras se despliegan en el lienzo en todo momento
-    const revealMinute = state.showFullJourney ? TIME_MAX : Math.max(state.currentMinute, TIME_MIN);
+    // Al principio no se ve; se va haciendo progresivamente mientras avanza la línea del tiempo
+    const isAtStart = !state.showFullJourney && state.currentMinute <= TIME_MIN && !state.isPlaying;
+    const revealMinute = state.showFullJourney ? TIME_MAX : (isAtStart ? TIME_MIN - 1 : state.currentMinute);
 
     const categoriesList = ["transito", "personas", "maquinarias", "naturaleza"];
     const categoryRecords = {
@@ -653,7 +658,7 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryRecords[c].sort((a, b) => a.minute - b.minute);
     });
 
-    // 2. DIBUJAR ONDAS FLUIDAS ACTIVAS
+    if (revealMinute >= TIME_MIN) {
       // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
       drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
 
@@ -665,7 +670,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
       });
-    // Fin dibujo ondas
+    }
 
     // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
     drawWeavingCursor(ctx, currentCursorX, midY, h);
@@ -780,14 +785,25 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let p = 0; p <= numSamples; p++) {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
-        if (minute > revealMinute) break; // Se arma progresivamente
+
+        if (minute >= revealMinute) {
+          // Conectar el filamento exactamente al cabezal temporal
+          const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
+          const tipX = padX + tipTNorm * usableW;
+          const { spineY, env } = getSpineAt(tipTNorm, revealMinute);
+          const strandFlutter = Math.sin(tipTNorm * 22 + strandPhase) * (env.openness * 5.5);
+          const strandY = spineY + (strandNorm * env.width) + strandFlutter;
+          if (isFirst) {
+            ctx.moveTo(tipX, strandY);
+            isFirst = false;
+          } else {
+            ctx.lineTo(tipX, strandY);
+          }
+          break;
+        }
 
         const x = padX + tNorm * usableW;
         const { spineY, env } = getSpineAt(tNorm, minute);
-
-        // Cada filamento se ubica dentro del ancho de la onda:
-        // Si es alta intensidad, env.width se expande hasta ~84px (la onda se abre)
-        // Si es baja intensidad, env.width se contrae a ~10px (la onda se cierra)
         const strandFlutter = Math.sin(tNorm * 22 + strandPhase) * (env.openness * 5.5);
         const strandY = spineY + (strandNorm * env.width) + strandFlutter;
 
@@ -798,8 +814,6 @@ document.addEventListener("DOMContentLoaded", () => {
           ctx.lineTo(x, strandY);
         }
       }
-
-      // Densidad y transparencia rica de acuarela visible
       const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
       // alpha asignado
@@ -891,14 +905,28 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let p = 0; p <= numSamples; p++) {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
-        if (minute > revealMinute) break; // Se arma progresivamente
+
+        if (minute >= revealMinute) {
+          // Conectar el filamento exactamente al cabezal temporal inferior
+          const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
+          const tipX = padX + tipTNorm * usableW;
+          const depth = getFluidDbDepth(revealMinute);
+          const fluidWave = Math.sin(tipTNorm * 12 - phase + strandPhase) * 10 +
+                            Math.cos(tipTNorm * 22 + strandPhase * 0.6) * 5;
+          const tipY = midY + depth + (strandNorm * (depth * 0.35)) + fluidWave;
+          if (isFirst) {
+            ctx.moveTo(tipX, tipY);
+            isFirst = false;
+          } else {
+            ctx.lineTo(tipX, tipY);
+          }
+          break;
+        }
 
         const x = padX + tNorm * usableW;
         const depth = getFluidDbDepth(minute);
-
         const fluidWave = Math.sin(tNorm * 12 - phase + strandPhase) * 10 +
                           Math.cos(tNorm * 22 + strandPhase * 0.6) * 5;
-
         const y = midY + depth + (strandNorm * (depth * 0.35)) + fluidWave;
 
         if (isFirst) {
@@ -908,7 +936,6 @@ document.addEventListener("DOMContentLoaded", () => {
           ctx.lineTo(x, y);
         }
       }
-
       const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
       ctx.lineWidth = 1.05;
