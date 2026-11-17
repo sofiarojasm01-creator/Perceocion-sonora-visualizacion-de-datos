@@ -42,14 +42,25 @@
   padding: 0;
 }
 
-html, body {
+html {
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
   background-color: var(--bg-canvas);
   color: var(--text-main);
   font-family: var(--font-main);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -58,13 +69,147 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.015em;
 }
 
+/* ==========================================================================
+   PANTALLA 1: PREGUNTA INTRODUCTORIA AL CENTRO
+   ========================================================================== */
+.intro-screen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: radial-gradient(circle at 50% 42%, #FFFFFF 0%, #F8FAFC 100%);
+  padding: 2.5rem 2rem;
+  box-sizing: border-box;
+  text-align: center;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+}
+
+.intro-bg-waves {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  opacity: 0.75;
+  z-index: 1;
+}
+
+.intro-wave-svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.intro-center-box {
+  position: relative;
+  z-index: 2;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.6rem;
+  animation: fadeInIntro 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.intro-eyebrow {
+  font-family: var(--font-main);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  background: rgba(15, 23, 42, 0.04);
+  padding: 0.4rem 1.15rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+}
+
+.intro-question {
+  font-family: var(--font-main);
+  font-size: clamp(2.1rem, 4.8vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.18;
+  color: var(--text-main);
+  margin: 0;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.intro-subtitle {
+  font-family: var(--font-main);
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 620px;
+  line-height: 1.55;
+}
+
+.intro-scroll-pill {
+  margin-top: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: var(--text-main);
+  color: #FFFFFF;
+  border: none;
+  padding: 0.8rem 1.75rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-main);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+  transition: all var(--transition-smooth);
+}
+
+.intro-scroll-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+  background: #000000;
+}
+
+.pill-arrow {
+  animation: bounceDown 1.8s infinite ease-in-out;
+}
+
+@keyframes bounceDown {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+@keyframes fadeInIntro {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .app-container {
   display: flex;
   flex-direction: column;
   width: 100vw;
   height: 100vh;
+  min-height: 100vh;
   position: relative;
   background: #FFFFFF;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
 }
 
 /* ==========================================================================

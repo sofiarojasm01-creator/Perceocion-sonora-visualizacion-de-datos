@@ -290,12 +290,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     window.addEventListener("resize", resize);
     resize();
+
+    // Cuando se desliza a la sección de visualización, asegurar redimensionado exacto
+    const visApp = document.getElementById("visualization-app");
+    if (visApp && "IntersectionObserver" in window) {
+      const visObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            resize();
+          }
+        });
+      }, { threshold: 0.1 });
+      visObserver.observe(visApp);
+    }
+    resize();
   }
 
   function setupSlider() {
     timeSlider.value = state.currentMinute;
     currentTimeText.textContent = formatMinute(state.currentMinute);
-    currentTimeText.textContent = formatMinute(state.currentMinute);
+    // duplicado limpiado
 
     timeSlider.addEventListener("input", (e) => {
       state.showFullJourney = false;
@@ -391,6 +405,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
     canvas.addEventListener("mousemove", handleCanvasMouseMove);
     canvas.addEventListener("mouseleave", handleCanvasMouseLeave);
+
+    // Deslizar desde la pantalla introductoria hacia la visualización
+    const btnScrollToVis = document.getElementById("btn-scroll-to-vis");
+    if (btnScrollToVis) {
+      btnScrollToVis.addEventListener("click", () => {
+        const visApp = document.getElementById("visualization-app");
+        if (visApp) {
+          visApp.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    }
+
+    // Regresar a la pregunta inicial al presionar el título del proyecto
+    const brandTitle = document.querySelector(".brand-title");
+    if (brandTitle) {
+      brandTitle.style.cursor = "pointer";
+      brandTitle.title = "Volver a la pregunta inicial";
+      brandTitle.addEventListener("click", () => {
+        const introScreen = document.getElementById("intro-screen");
+        if (introScreen) {
+          introScreen.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    }
+
+    // Deslizar con tecla abajo o espacio cuando se está en la pantalla inicial
+    window.addEventListener("keydown", (e) => {
+      if ((e.key === "ArrowDown" || e.key === "PageDown") && window.scrollY < window.innerHeight * 0.4) {
+        const visApp = document.getElementById("visualization-app");
+        if (visApp) {
+          e.preventDefault();
+          visApp.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    });
   }
 
   function updateMomentChips(min) {
