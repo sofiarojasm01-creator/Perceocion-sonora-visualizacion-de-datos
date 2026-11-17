@@ -266,6 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       PROJECT_DATA = window.EMBEDDED_DATASET;
     }
+    computeDecibelMetrics();
     initApp();
   }
 
@@ -612,7 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dbTooltipVal.textContent = `${db.toFixed(1)} dB`;
     const min = item.db_min || (db - 6).toFixed(1);
     const max = item.db_max || (db + 8).toFixed(1);
-    dbTooltipRange.textContent = `Rango sonómetro: [Mín: ${min} dB — Máx: ${max} dB]`;
+    dbTooltipRange.textContent = `Medición: ${db.toFixed(1)} dB (Mín: ${dbMetrics.min.toFixed(1)} dB · Promedio: ${dbMetrics.avg.toFixed(1)} dB · Máx: ${dbMetrics.max.toFixed(1)} dB)`;
 
     const stage = document.getElementById("stage-container");
     const stageRect = stage ? stage.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
@@ -730,37 +731,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Métricas del conjunto de datos calculadas empíricamente
+  const dbMetrics = {
+    min: 54.0,
+    max: 78.0,
+    avg: 67.05
+  };
+
+  function computeDecibelMetrics() {
+    if (!PROJECT_DATA || !PROJECT_DATA.fichas_campo) return;
+    const dbs = PROJECT_DATA.fichas_campo
+      .map(f => Number(f.db_prom))
+      .filter(v => !isNaN(v) && v > 0);
+    if (dbs.length > 0) {
+      dbMetrics.min = Math.min(...dbs);
+      dbMetrics.max = Math.max(...dbs);
+      dbMetrics.avg = dbs.reduce((a, b) => a + b, 0) / dbs.length;
+    }
+  }
+
   // =========================================================================
-  // GENERADOR DE ONDAS TOPOGRÁFICAS PARAMÉTRICAS Y NODOS EMBEBIDOS
-  // (Estilo topografía paramétrica / guilloché wireframe: extremos ceñidos en aguja,
-  //  floración en crestas montañosas con filamentos nítidos y definidos)
+  // GENERADOR DE ONDAS TOPOGRÁFICAS PARAMÉTRICAS — EJE SUPERIOR (PERCEPCIÓN)
+  // (Estrictamente confinado sobre el eje medio midY, nunca pasa al eje inferior.
+  //  Si las personas lo perciben alto la onda es más pronunciada y abierta)
   // =========================================================================
   function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, phase, catIdx, revealMinute) {
     const colorHex = getCategoryColor(cat);
     const rgb = hexToRgb(colorHex);
 
-    // Separación vertical de las líneas base según categoría sonora
+    // Separación sutil de la línea base sobre el eje medio (siempre sobre midY)
     const catBaseOffsets = {
-      transito: -44,
-      personas: -26,
-      maquinarias: -14,
-      naturaleza: -3
+      transito: -10,
+      personas: -8,
+      maquinarias: -6,
+      naturaleza: -4
     };
-    const baseOffset = catBaseOffsets[cat] || -20;
+    const baseOffset = catBaseOffsets[cat] || -6;
+    const baseY = midY + baseOffset; // Siempre <= midY - 4
 
     // 38 filamentos de contorno topográfico de alta definición
     const numStrands = 38;
-    const numSamples = 240; // Alta densidad de muestreo para máxima fluidez
+    const numSamples = 240; // Muestreo denso para máxima fluidez orgánica
 
-    // 1. Función de envolvente topográfica continua
+    // 1. Función de envolvente topográfica continua de percepción subjetiva
     function getTopographicProfile(minute) {
       let totalW = 0;
       let accumCrest = 0;
-      let accumTrough = 0;
-      let accumWidth = 0;
+      let accumBandW = 0;
       let accumOpenness = 0;
       let maxWeight = 0;
-      const sigma = 34; // Dispersión orgánica que conecta suavemente las mediciones
+      const sigma = 34; // Dispersión orgánica suave
 
       for (let i = 0; i < records.length; i++) {
         const r = records[i];
@@ -770,83 +790,73 @@ document.addEventListener("DOMContentLoaded", () => {
         if (w > maxWeight) maxWeight = w;
 
         // Modulación según intensidad percibida (calibre en mm):
-        // Alta (calibre 95): cresta alta, cuenca profunda, filamentos abiertos en abanico
-        // Media (calibre 70): apertura intermedia
-        // Baja (calibre 40/28): compacta y ceñida a la base
-        let crest = 32;
-        let trough = 14;
-        let bandW = 16;
+        // Alta (calibre 95): onda MUY PRONUNCIADA hacia arriba (cresta 150px, abanico amplio)
+        // Media (calibre 70): pronunciación moderada (cresta 78px)
+        // Baja (calibre 28/40): compacta y chica pegada a la base (cresta 26px)
+        let crest = 26;
+        let bandW = 12;
         let openness = 0.12;
 
         if (r.calibre === 95) {
-          crest = 138;
-          trough = 54;
-          bandW = 86;
+          crest = 150;    // Muy pronunciada hacia arriba
+          bandW = 72;     // Gran apertura de filamentos
           openness = 1.0;
         } else if (r.calibre === 70) {
-          crest = 76;
-          trough = 30;
-          bandW = 44;
-          openness = 0.48;
+          crest = 78;     // Pronunciación media
+          bandW = 38;     // Apertura intermedia
+          openness = 0.50;
         } else {
-          crest = 32;
-          trough = 14;
-          bandW = 16;
+          crest = 26;     // Onda baja, compacta
+          bandW = 12;
           openness = 0.12;
         }
 
         accumCrest += crest * w;
-        accumTrough += trough * w;
-        accumWidth += bandW * w;
+        accumBandW += bandW * w;
         accumOpenness += openness * w;
       }
 
-      // Si no hay registros sonoros cercanos (momento calmo / extremos):
-      // Las líneas se ciñen en un pinch horizontal finísimo (< 1.5px)
+      // Si no hay registros sonoros cercanos (calma / silencio):
+      // Los filamentos se ciñen en un hilo finísimo (< 1.2px) sobre la base
       if (totalW < 0.0001) {
-        return { crest: 0, trough: 0, width: 1.2, openness: 0, maxWeight: 0 };
+        return { crest: 0, bandW: 1.2, openness: 0, maxWeight: 0 };
       }
 
       const blend = Math.min(1, maxWeight * 1.6);
       const crest = (accumCrest / totalW) * blend;
-      const trough = (accumTrough / totalW) * blend;
-      const width = (accumWidth / totalW) * blend + 1.2 * (1 - blend);
+      const bandW = (accumBandW / totalW) * blend + 1.2 * (1 - blend);
       const openness = (accumOpenness / totalW) * blend;
 
-      return { crest, trough, width, openness, maxWeight };
+      return { crest, bandW, openness, maxWeight };
     }
 
-    // 2. Función para calcular el punto exacto de un filamento s en el minuto m
+    // 2. Punto exacto de cada filamento s en el minuto m
+    // u = 0 (cresta superior más alta), u = 1 (filamento inferior sobre la línea base)
     function getStrandPoint(s, minute, normT) {
       const prof = getTopographicProfile(minute);
       const u = s / (numStrands - 1); // 0 (cresta superior) a 1 (base inferior)
-      const lambda = u * 2 - 1;       // -1 a +1
+      const w = 1.0 - u;              // 1 (cresta) a 0 (base)
 
-      let yOffset = 0;
-      if (lambda < 0) {
-        // Mitad superior hacia la cresta montañosa
-        const v = -lambda; // 0 a 1
-        yOffset = -prof.crest * (0.28 * v + 0.72 * Math.pow(v, 0.88)) - (prof.width * 0.5) * v;
-      } else {
-        // Mitad inferior hacia la cuenca/valle
-        const v = lambda;  // 0 a 1
-        yOffset = +prof.trough * (0.28 * v + 0.72 * Math.pow(v, 0.88)) + (prof.width * 0.5) * v;
-      }
+      // Distribución estratificada hacia arriba (hacia y menor)
+      const dy = -prof.crest * (0.25 * w + 0.75 * Math.pow(w, 0.85)) - (prof.bandW * 0.35) * w * (1.0 - w);
 
-      // Ondulación armónica topográfica interna (terrazas y relieves 3D)
-      // Se desvanece suavemente en los bordes externos (1 - lambda^2) y en la calma (openness = 0)
-      const envelopeFactor = (1 - lambda * lambda) * prof.openness;
-      const theta1 = normT * 26 + lambda * 3.6 + phase * 0.85 + catIdx * 1.4;
-      const theta2 = normT * 52 - lambda * 2.1 + phase * 0.45;
-      const theta3 = normT * 13 + lambda * 1.7 + phase * 1.1;
+      // Relieve armónico topográfico 3D (terrazas interiores)
+      // Se anula en los extremos superior (u=0) e inferior (u=1) mediante sin(u * PI)
+      const envelopeFactor = Math.sin(u * Math.PI) * prof.openness;
+      const theta1 = normT * 26 + (1 - u) * 3.6 + phase * 0.85 + catIdx * 1.4;
+      const theta2 = normT * 52 - (1 - u) * 2.1 + phase * 0.45;
+      const theta3 = normT * 13 + (1 - u) * 1.7 + phase * 1.1;
 
       const ripple = envelopeFactor * (
-        9.2 * Math.sin(theta1) +
-        4.6 * Math.cos(theta2) +
-        5.8 * Math.sin(theta3)
+        8.5 * Math.sin(theta1) +
+        4.2 * Math.cos(theta2) +
+        5.5 * Math.sin(theta3)
       );
 
-      const y = midY + baseOffset + yOffset + ripple;
+      // REGLA FUNDAMENTAL: NUNCA PASAR AL EJE INFERIOR (y <= midY - 3)
+      const rawY = baseY + dy + ripple;
+      const y = Math.min(midY - 3, rawY);
+
       return { y, prof };
     }
 
@@ -856,7 +866,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     for (let s = 0; s < numStrands; s++) {
       const u = s / (numStrands - 1);
-      const lambda = u * 2 - 1;
 
       ctx.beginPath();
       let isFirst = true;
@@ -869,7 +878,7 @@ document.addEventListener("DOMContentLoaded", () => {
           // Conectar en punta afilada (needle pinch) exactamente en el cabezal temporal
           const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
           const tipX = padX + tipTNorm * usableW;
-          const spineTip = getStrandPoint(Math.floor(numStrands / 2), revealMinute, tipTNorm);
+          const spineTip = getStrandPoint(Math.floor(numStrands * 0.6), revealMinute, tipTNorm);
           if (isFirst) {
             ctx.moveTo(tipX, spineTip.y);
             isFirst = false;
@@ -884,10 +893,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Aguzar la punta que avanza en los últimos minutos antes del cabezal
         if (revealMinute < TIME_MAX && revealMinute - minute < 12) {
-          const spinePoint = getStrandPoint(Math.floor(numStrands / 2), minute, tNorm);
+          const spinePoint = getStrandPoint(Math.floor(numStrands * 0.6), minute, tNorm);
           const pinchFactor = Math.max(0, (revealMinute - minute) / 12);
           y = spinePoint.y + (y - spinePoint.y) * pinchFactor;
         }
+
+        // Seguridad absoluta de eje superior
+        y = Math.min(midY - 3, y);
 
         if (isFirst) {
           ctx.moveTo(x, y);
@@ -898,8 +910,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // Definición nítida y vibrante en el color respectivo de la categoría
-      // Filamentos centrales con mayor cuerpo (alpha 0.85), externos sutiles y precisos (alpha 0.50)
-      const strandAlpha = 0.48 + 0.38 * (1 - Math.abs(lambda));
+      const strandAlpha = 0.50 + 0.36 * Math.sin(u * Math.PI);
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${strandAlpha.toFixed(3)})`;
       ctx.lineWidth = 1.15;
       ctx.lineCap = "round";
@@ -909,14 +920,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.restore();
 
-    // 4. DIBUJAR LOS NODOS EN LAS CRESTAS DE LAS MONTAÑAS SONORAS
+    // 4. DIBUJAR LOS NODOS EN LAS CRESTAS DE LAS MONTAÑAS SONORAS (Apex superior)
     records.forEach(rec => {
       if (rec.minute > revealMinute) return;
 
       const normT = (rec.minute - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
 
-      // Ubicar el nodo en la cresta superior de la elevación montañosa
+      // Ubicar el nodo en la cresta superior (u = 0)
       const { y: nodeY } = getStrandPoint(0, rec.minute, normT);
 
       let intensityLevel = "Baja";
@@ -947,8 +958,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // ONDA INFERIOR DE DECIBELES MEDIDOS (Topografía Acústica Paramétrica)
-  // (Extremos ceñidos en aguja, profundización en valles acústicos rojos nítidos)
+  // ONDA INFERIOR DE DECIBELES MEDIDOS — EJE INFERIOR
+  // (Estrictamente confinada bajo midY, nunca pasa al eje superior.
+  //  Escalada según el rango empírico [Mín: 54 dB, Promedio: 67 dB, Máx: 78 dB].
+  //  Si el decibel registrado es el más bajo la onda es más chica;
+  //  si es alto profundiza en un cañón acústico pronunciado)
   // =========================================================================
   function drawDecibelFluidWave(ctx, midY, padX, usableW, phase, revealMinute) {
     if (!PROJECT_DATA) return;
@@ -957,13 +971,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const numStrands = 36;
     const numSamples = 240;
     const rgb = { r: 220, g: 38, b: 38 }; // Rojo Acústico Decibeles (#DC2626)
-    const baseOffset = 10;
+    const baseY = midY + 6; // Siempre >= midY + 4
+
+    // Métricas del conjunto de datos: Mínimo 54 dB, Punto Medio / Promedio ~67 dB, Máximo 78 dB
+    const minDbVal = dbMetrics.min || 54.0;
+    const maxDbVal = dbMetrics.max || 78.0;
 
     // 1. Función de perfil de profundidad acústica continua
     function getDbTopographicProfile(minute) {
       let totalW = 0;
       let accumDepth = 0;
-      let accumWidth = 0;
+      let accumBandW = 0;
       let accumOpenness = 0;
       let maxWeight = 0;
       const sigma = 35;
@@ -976,49 +994,56 @@ document.addEventListener("DOMContentLoaded", () => {
         if (w > maxWeight) maxWeight = w;
 
         const db = r.db_prom || 60;
-        const clamped = Math.max(48, Math.min(120, db));
-        const normDb = (clamped - 48) / (120 - 48); // 0 a 1
+        // Normalización exacta contra el rango empírico [minDbVal (54 dB) a maxDbVal (78 dB)]
+        const normDb = Math.max(0, Math.min(1, (db - minDbVal) / (maxDbVal - minDbVal)));
 
-        const depth = 22 + normDb * 148;
-        const bandW = 12 + normDb * 74;
-        const openness = 0.08 + normDb * 0.92;
+        // Si el decibel es el más bajo (54 dB, normDb = 0), la onda es MÁS CHICA (apenas 12px)
+        // En el punto medio (67 dB, normDb ~ 0.54), profundidad moderada (~75px)
+        // En el más alto (78 dB, normDb = 1.0), onda profunda y pronunciada (~150px)
+        const depth = 12 + normDb * 138;
+        const bandW = 8 + normDb * 70;
+        const openness = 0.05 + normDb * 0.95;
 
         accumDepth += depth * w;
-        accumWidth += bandW * w;
+        accumBandW += bandW * w;
         accumOpenness += openness * w;
       }
 
       if (totalW < 0.0001) {
-        return { depth: 16, width: 1.2, openness: 0, maxWeight: 0 };
+        return { depth: 10, bandW: 1.2, openness: 0, maxWeight: 0 };
       }
 
       const blend = Math.min(1, maxWeight * 1.5);
-      const depth = (accumDepth / totalW) * blend + 16 * (1 - blend);
-      const width = (accumWidth / totalW) * blend + 1.2 * (1 - blend);
+      const depth = (accumDepth / totalW) * blend + 10 * (1 - blend);
+      const bandW = (accumBandW / totalW) * blend + 1.2 * (1 - blend);
       const openness = (accumOpenness / totalW) * blend;
 
-      return { depth, width, openness, maxWeight };
+      return { depth, bandW, openness, maxWeight };
     }
 
     // 2. Punto exacto de cada filamento acústico s
+    // u = 0 (línea superior cerca de la base), u = 1 (fondo del cañón acústico hacia abajo)
     function getDbStrandPoint(s, minute, normT) {
       const prof = getDbTopographicProfile(minute);
-      const u = s / (numStrands - 1);
-      const lambda = u * 2 - 1; // -1 (superior) a +1 (valle profundo)
+      const u = s / (numStrands - 1); // 0 (arriba cerca de base) a 1 (abajo cañón)
 
-      const v = (lambda + 1) * 0.5; // 0 a 1 descendente
-      const yOffset = prof.depth * (0.28 * v + 0.72 * Math.pow(v, 0.9)) + (prof.width * 0.5) * lambda;
+      // Distribución estratificada hacia abajo (hacia y mayor)
+      const dy = +prof.depth * (0.25 * u + 0.75 * Math.pow(u, 0.85)) + (prof.bandW * 0.35) * u * (1.0 - u);
 
-      const envelopeFactor = (1 - lambda * lambda) * prof.openness;
-      const theta1 = normT * 24 + lambda * 3.4 - phase * 0.75;
-      const theta2 = normT * 48 - lambda * 2.0 + phase * 0.45;
+      // Relieve armónico topográfico 3D
+      const envelopeFactor = Math.sin(u * Math.PI) * prof.openness;
+      const theta1 = normT * 24 + u * 3.4 - phase * 0.75;
+      const theta2 = normT * 48 - u * 2.0 + phase * 0.45;
 
       const ripple = envelopeFactor * (
-        9.0 * Math.sin(theta1) +
-        4.8 * Math.cos(theta2)
+        8.0 * Math.sin(theta1) +
+        4.5 * Math.cos(theta2)
       );
 
-      const y = midY + baseOffset + yOffset + ripple;
+      // REGLA FUNDAMENTAL: NUNCA PASAR AL EJE SUPERIOR (y >= midY + 3)
+      const rawY = baseY + dy + ripple;
+      const y = Math.max(midY + 3, rawY);
+
       return { y, prof };
     }
 
@@ -1028,7 +1053,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     for (let s = 0; s < numStrands; s++) {
       const u = s / (numStrands - 1);
-      const lambda = u * 2 - 1;
 
       ctx.beginPath();
       let isFirst = true;
@@ -1040,7 +1064,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (minute >= revealMinute) {
           const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
           const tipX = padX + tipTNorm * usableW;
-          const spineTip = getDbStrandPoint(Math.floor(numStrands / 2), revealMinute, tipTNorm);
+          const spineTip = getDbStrandPoint(Math.floor(numStrands * 0.4), revealMinute, tipTNorm);
           if (isFirst) {
             ctx.moveTo(tipX, spineTip.y);
             isFirst = false;
@@ -1054,10 +1078,13 @@ document.addEventListener("DOMContentLoaded", () => {
         let { y } = getDbStrandPoint(s, minute, tNorm);
 
         if (revealMinute < TIME_MAX && revealMinute - minute < 12) {
-          const spinePoint = getDbStrandPoint(Math.floor(numStrands / 2), minute, tNorm);
+          const spinePoint = getDbStrandPoint(Math.floor(numStrands * 0.4), minute, tNorm);
           const pinchFactor = Math.max(0, (revealMinute - minute) / 12);
           y = spinePoint.y + (y - spinePoint.y) * pinchFactor;
         }
+
+        // Seguridad absoluta de eje inferior
+        y = Math.max(midY + 3, y);
 
         if (isFirst) {
           ctx.moveTo(x, y);
@@ -1067,7 +1094,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      const strandAlpha = 0.48 + 0.38 * (1 - Math.abs(lambda));
+      const strandAlpha = 0.50 + 0.36 * Math.sin(u * Math.PI);
       ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${strandAlpha.toFixed(3)})`;
       ctx.lineWidth = 1.15;
       ctx.lineCap = "round";
@@ -1101,6 +1128,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const normT = (m - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
+      // Posición del nodo en el fondo del cañón acústico (u = 1)
       const { y } = getDbStrandPoint(numStrands - 1, m, normT);
 
       if (x - lastLabelX < 38) {
