@@ -210,9 +210,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      // 2. Asignar volumen dinámico con jerarquía acústica:
-      // Si una categoría (ej. Tránsito) tiene onda grande por intensidad alta,
-      // se escucha MUCHO MÁS por encima de las otras, atenuando a las demás.
+      // 2. Asignar volumen dinámico estrictamente vinculado al tamaño de la onda:
+      // Si la onda disminuye, su volumen disminuye en proporción directa; si la onda cae a cero, el volumen se desvanece a 0.
+      // Si la onda es grande (intensidad alta), se escucha MUCHO MÁS por encima de las demás.
       categories.forEach(cat => {
         const item = this.tracks[cat];
         if (!item || !item.audio) return;
@@ -221,32 +221,30 @@ document.addEventListener("DOMContentLoaded", () => {
           item.targetVol = 0.0;
         } else {
           const h = amplitudes[cat] || 0;
-          const isHighWave = (h >= 85);
+          const normH = Math.max(0, Math.min(1, h / 145.0)); // 0 (sin onda) a 1 (máxima onda)
 
-          if (anyHighIntensity) {
-            // Hay al menos una categoría con onda grande dominante
-            if (isHighWave) {
-              // Categoría con onda grande: volumen MÁXIMO protagonista en primer plano
-              item.targetVol = 0.96;
+          if (normH <= 0.005) {
+            // La onda ha disminuido por completo al eje / calma: el sonido baja a cero
+            // (Para naturaleza, una presencia submarina o costera sutilísima si está activa)
+            item.targetVol = (cat === "naturaleza") ? 0.08 : 0.0;
+          } else if (anyHighIntensity) {
+            // Existe al menos una categoría con onda grande dominante (ej. Tránsito alto)
+            if (h >= 85) {
+              // Esta categoría tiene la onda grande: volumen MÁXIMO protagonista (0.98)
+              item.targetVol = 0.98;
             } else {
-              // Las demás categorías se atenúan a segundo plano para que la onda dominante destaque claramente
-              const relativeShare = Math.min(1, h / 85);
-              item.targetVol = 0.16 + relativeShare * 0.14; // entre 0.16 y 0.30
+              // Las otras categorías disminuyen su volumen proporcionalmente al tamaño reducido de su onda
+              item.targetVol = Math.max(0.0, normH * 0.32);
             }
           } else {
-            // Ninguna categoría tiene onda grande: mezcla rica y balanceada donde todos se diferencian
-            if (h >= 45) {
-              item.targetVol = 0.72; // Onda media (calibre 70)
-            } else if (h >= 15) {
-              item.targetVol = 0.52; // Onda baja (calibre 28/40)
-            } else {
-              item.targetVol = (cat === "naturaleza") ? 0.42 : 0.32; // Presencia ambiental basal
-            }
+            // Mezcla general: cada categoría tiene un volumen que sigue fielmente su tamaño de onda.
+            // Si la onda disminuye, su sonido baja proporcionalmente.
+            item.targetVol = Math.max(0.0, Math.min(1.0, normH * 0.92));
           }
         }
 
-        // Interpolación fluida (fade orgánico entre frames para evitar cortes abruptos)
-        const ease = 0.10;
+        // Interpolación fluida (fade orgánico entre frames para transiciones suaves)
+        const ease = 0.12;
         item.currentVol += (item.targetVol - item.currentVol) * ease;
         const actualVol = Math.max(0, Math.min(1, item.currentVol * this.masterVolume));
 
@@ -254,6 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
           item.audio.volume = actualVol;
         } catch (e) {}
       });
+
     },
 
     toggleMasterMute() {
