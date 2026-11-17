@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     currentMinute: 580, // 09:40 hrs
     isPlaying: false,
-    showFullJourney: false,
+    showFullJourney: true,
     playbackTimer: null,
     activeCategories: {
       transito: true,
@@ -343,14 +343,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function setupSlider() {
     timeSlider.value = state.currentMinute;
     currentTimeText.textContent = formatMinute(state.currentMinute);
-    // duplicado limpiado
+    if (btnToggleJourney) {
+      btnToggleJourney.classList.add('active');
+      btnToggleJourney.textContent = 'Ver avance progresivo';
+    }
 
     timeSlider.addEventListener("input", (e) => {
-      state.showFullJourney = false;
-      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
-      // estado visual de recorrido mantenido
-      // texto mantenido
-
       const val = parseInt(e.target.value, 10);
       state.currentMinute = val;
       currentTimeText.textContent = formatMinute(val);
@@ -359,11 +357,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".moment-chip").forEach(chip => {
       chip.addEventListener("click", () => {
-      state.showFullJourney = false;
-      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
-      // estado visual de recorrido mantenido
-      // texto mantenido
-
         const val = timeToMinutes(chip.dataset.timeTarget);
         timeSlider.value = val;
         state.currentMinute = val;
@@ -374,11 +367,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tick-mark").forEach(tick => {
       tick.addEventListener("click", () => {
-      state.showFullJourney = false;
-      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
-      // estado visual de recorrido mantenido
-      // texto mantenido
-
         const val = parseInt(tick.dataset.val, 10);
         timeSlider.value = val;
         state.currentMinute = val;
@@ -499,11 +487,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function togglePlayPause() {
     state.isPlaying = !state.isPlaying;
     if (state.isPlaying) {
-      state.showFullJourney = false;
-      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
-      // estado visual de recorrido mantenido
-      // texto mantenido
-
       playIcon.style.display = "none";
       pauseIcon.style.display = "block";
       soundEngine.play(); // Iniciar todos los sonidos al dar play a la línea del tiempo
@@ -697,9 +680,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Línea Base Central Sutil
     drawCenterBaseline(ctx, w, midY, padX, minToX);
 
-    // Al principio no se ve; se va haciendo progresivamente mientras avanza la línea del tiempo
-    const isAtStart = !state.showFullJourney && state.currentMinute <= TIME_MIN && !state.isPlaying;
-    const revealMinute = state.showFullJourney ? TIME_MAX : (isAtStart ? TIME_MIN - 1 : state.currentMinute);
+    // Las ondas sonoras se despliegan en el lienzo en todo momento
+    const revealMinute = state.showFullJourney ? TIME_MAX : Math.max(state.currentMinute, TIME_MIN);
 
     const categoriesList = ["transito", "personas", "maquinarias", "naturaleza"];
     const categoryRecords = {
@@ -741,19 +723,17 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryRecords[c].sort((a, b) => a.minute - b.minute);
     });
 
-    if (revealMinute >= TIME_MIN) {
-      // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
-      drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
+    // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
+    drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
 
-      // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
-      categoriesList.forEach((catKey, catIndex) => {
-        if (!state.activeCategories[catKey]) return;
-        const records = categoryRecords[catKey];
-        if (records.length === 0) return;
+    // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
+    categoriesList.forEach((catKey, catIndex) => {
+      if (!state.activeCategories[catKey]) return;
+      const records = categoryRecords[catKey];
+      if (records.length === 0) return;
 
-        drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
-      });
-    }
+      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
+    });
 
     // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
     drawWeavingCursor(ctx, currentCursorX, midY, h);
@@ -907,7 +887,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
 
-        if (minute >= revealMinute) {
+        if (revealMinute < TIME_MAX && minute >= revealMinute) {
           // Conectar en punta afilada (needle pinch) exactamente en el cabezal temporal
           const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
           const tipX = padX + tipTNorm * usableW;
@@ -955,7 +935,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 4. DIBUJAR LOS NODOS EN LAS CRESTAS DE LAS MONTAÑAS SONORAS (Apex superior)
     records.forEach(rec => {
-      if (rec.minute > revealMinute) return;
+      if (revealMinute < TIME_MAX && rec.minute > revealMinute) return;
 
       const normT = (rec.minute - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
@@ -1094,7 +1074,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
 
-        if (minute >= revealMinute) {
+        if (revealMinute < TIME_MAX && minute >= revealMinute) {
           const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
           const tipX = padX + tipTNorm * usableW;
           const spineTip = getDbStrandPoint(Math.floor(numStrands * 0.4), revealMinute, tipTNorm);
@@ -1157,7 +1137,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     sampledRecords.forEach(r => {
       const m = timeToMinutes(r.hora);
-      if (m > revealMinute) return;
+      if (revealMinute < TIME_MAX && m > revealMinute) return;
 
       const normT = (m - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
