@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     currentMinute: 580, // 09:40 hrs
     isPlaying: false,
-    showFullJourney: true,
+    showFullJourney: false,
     playbackTimer: null,
     activeCategories: {
       transito: true,
@@ -66,41 +66,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const soundEngine = {
     isInitialized: false,
     isMasterMuted: false,
-    masterVolume: 0.92, // Nivel global claro y audible para que todos los sonidos se distingan con nitidez
-    isPlaying: false,
+    masterVolume: 0.85, // Nivel global claro y audible para diferenciar capas sonoras
+    hasUserStarted: false,
 
     tracks: {
       transito: {
         id: "audio-transito",
         src: "assets/sonidos/video transito.mp3",
         audio: null,
-        baseWeight: 0.65, // Tránsito: micros, aceleraciones, frenos y rodado sobre adoquín
-        currentVol: 0.65,
-        targetVol: 0.65
+        baseWeight: 0.28, // Tránsito: micros, autos y rodado sobre adoquín
+        currentVol: 0.28,
+        targetVol: 0.28
       },
       personas: {
         id: "audio-personas",
         src: "assets/sonidos/video personas sonido.mp3",
         audio: null,
-        baseWeight: 0.62, // Personas: bullicio, charlas callejeras, pregones y voces
-        currentVol: 0.62,
-        targetVol: 0.62
+        baseWeight: 0.25, // Personas: charlas callejeras, pregones y voces
+        currentVol: 0.25,
+        targetVol: 0.25
       },
       maquinarias: {
         id: "audio-maquinarias",
         src: "assets/sonidos/video maquinarias.mp3",
         audio: null,
-        baseWeight: 0.60, // Maquinarias: motores diésel marinos, grúas y actividad portuaria
-        currentVol: 0.60,
-        targetVol: 0.60
+        baseWeight: 0.20, // Maquinarias: motores marinos y actividad portuaria
+        currentVol: 0.20,
+        targetVol: 0.20
       },
       naturaleza: {
         id: "audio-naturaleza",
         src: "assets/sonidos/video naturaleza.mp3",
         audio: null,
-        baseWeight: 0.58, // Naturaleza: oleaje del Pacífico, gaviotas y brisa marina
-        currentVol: 0.58,
-        targetVol: 0.58
+        baseWeight: 0.22, // Naturaleza: oleaje del mar Pacífico y viento costero más presente y claro
+        currentVol: 0.22,
+        targetVol: 0.22
       }
     },
 
@@ -116,12 +116,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         el.loop = true;
         el.preload = "auto";
+        // Asignar volumen audible desde el inicio para que suenen todos al arrancar
         const initVol = Math.max(0, Math.min(1, item.baseWeight * this.masterVolume));
         el.volume = initVol;
         item.currentVol = item.baseWeight;
         item.targetVol = item.baseWeight;
         item.audio = el;
 
+        // Reinicio automático en bucle continuo sin cortes
         el.addEventListener("ended", () => {
           el.currentTime = 0;
           el.play().catch(() => {});
@@ -137,6 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       this.isPlaying = true;
 
+      // Iniciar reproducción simultánea de todas las pistas de audio
       for (const cat in this.tracks) {
         const item = this.tracks[cat];
         if (item.audio) {
@@ -167,52 +170,50 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const categories = ["transito", "personas", "maquinarias", "naturaleza"];
-      const amplitudes = {};
-      let anyHighIntensity = false;
-      const sigma = 34.0; // Coincide exactamente con la dispersión de las ondas visuales
 
-      // 1. Calcular en tiempo real la altura de onda / intensidad de cada categoría
+      // 1. Calcular amplitud e intensidad percibida en cada categoría para el minuto actual
+      const catIntensities = {};
+      let dominantCategory = null;
+      let maxCalibreGlobal = 0;
+
       categories.forEach(cat => {
         if (!activeCategories[cat] || this.isMasterMuted) {
-          amplitudes[cat] = 0;
+          catIntensities[cat] = { factor: 0, calibre: 0, count: 0 };
           return;
         }
 
         const recs = (recordsByCategory && recordsByCategory[cat]) || [];
-        let totalW = 0;
-        let accumCrest = 0;
-        let maxW = 0;
+        let maxCalibre = 0;
+        let nearbyCount = 0;
 
-        for (let i = 0; i < recs.length; i++) {
-          const r = recs[i];
-          const diff = currentMinute - r.minute;
-          const w = Math.exp(-(diff * diff) / (2 * sigma * sigma));
-          totalW += w;
-          if (w > maxW) maxW = w;
-
-          let crest = 26;
-          if (r.calibre === 95) crest = 150;
-          else if (r.calibre === 70) crest = 78;
-          else crest = 26;
-
-          accumCrest += crest * w;
+        for (const r of recs) {
+          const diff = Math.abs(currentMinute - r.minute);
+          if (diff <= 35) {
+            nearbyCount++;
+            if (r.calibre > maxCalibre) maxCalibre = r.calibre;
+          }
         }
 
-        if (totalW < 0.0001) {
-          amplitudes[cat] = 0;
-        } else {
-          const blend = Math.min(1, maxW * 1.6);
-          const h = (accumCrest / totalW) * blend;
-          amplitudes[cat] = h;
-          if (h >= 85) { // Onda grande (intensidad alta)
-            anyHighIntensity = true;
+        // Si la onda disminuye, el sonido de esa onda baja proporcionalmente
+        let factor = 0.08; // Base suave cuando no hay onda alta
+        if (nearbyCount > 0) {
+          if (maxCalibre === 95) {
+            factor = 1.0;  // Onda grande / Alta intensidad
+          } else if (maxCalibre === 70) {
+            factor = 0.55; // Onda mediana / Media intensidad
+          } else {
+            factor = 0.22; // Onda pequeña / Baja intensidad
           }
+        }
+
+        catIntensities[cat] = { factor, calibre: maxCalibre, count: nearbyCount };
+        if (maxCalibre > maxCalibreGlobal && nearbyCount > 0) {
+          maxCalibreGlobal = maxCalibre;
+          dominantCategory = cat;
         }
       });
 
-      // 2. Asignar volumen dinámico estrictamente vinculado al tamaño de la onda:
-      // Si la onda disminuye, su volumen disminuye en proporción directa; si la onda cae a cero, el volumen se desvanece a 0.
-      // Si la onda es grande (intensidad alta), se escucha MUCHO MÁS por encima de las demás.
+      // 2. Priorizar dominantemente la categoría con onda grande (ej. Tránsito 95mm al frente)
       categories.forEach(cat => {
         const item = this.tracks[cat];
         if (!item || !item.audio) return;
@@ -220,39 +221,27 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!activeCategories[cat] || this.isMasterMuted) {
           item.targetVol = 0.0;
         } else {
-          const h = amplitudes[cat] || 0;
-          const normH = Math.max(0, Math.min(1, h / 145.0)); // 0 (sin onda) a 1 (máxima onda)
+          const info = catIntensities[cat];
+          let vol = item.baseWeight * info.factor;
 
-          if (normH <= 0.005) {
-            // La onda ha disminuido por completo al eje / calma: el sonido baja a cero
-            // (Para naturaleza, una presencia submarina o costera sutilísima si está activa)
-            item.targetVol = (cat === "naturaleza") ? 0.08 : 0.0;
-          } else if (anyHighIntensity) {
-            // Existe al menos una categoría con onda grande dominante (ej. Tránsito alto)
-            if (h >= 85) {
-              // Esta categoría tiene la onda grande: volumen MÁXIMO protagonista (0.98)
-              item.targetVol = 0.98;
-            } else {
-              // Las otras categorías disminuyen su volumen proporcionalmente al tamaño reducido de su onda
-              item.targetVol = Math.max(0.0, normH * 0.32);
-            }
-          } else {
-            // Mezcla general: cada categoría tiene un volumen que sigue fielmente su tamaño de onda.
-            // Si la onda disminuye, su sonido baja proporcionalmente.
-            item.targetVol = Math.max(0.0, Math.min(1.0, normH * 0.92));
+          if (cat === dominantCategory && info.calibre === 95) {
+            vol = 0.95; // Sonido dominante al frente por encima de los otros
+          } else if (dominantCategory && cat !== dominantCategory && maxCalibreGlobal === 95) {
+            vol = Math.min(vol, 0.14); // Atenuar (ducking) los otros sonidos
+          } else if (cat === "naturaleza") {
+            vol = Math.max(0.18, vol); // Oleaje marino presente
           }
+
+          item.targetVol = Math.max(0, Math.min(1.0, vol));
         }
 
-        // Interpolación fluida (fade orgánico entre frames para transiciones suaves)
-        const ease = 0.12;
+        const ease = 0.10;
         item.currentVol += (item.targetVol - item.currentVol) * ease;
         const actualVol = Math.max(0, Math.min(1, item.currentVol * this.masterVolume));
-
         try {
           item.audio.volume = actualVol;
         } catch (e) {}
       });
-
     },
 
     toggleMasterMute() {
@@ -261,10 +250,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       this.isMasterMuted = !this.isMasterMuted;
 
-      if (!this.isMasterMuted) {
+      if (!this.isMasterMuted && state && state.isPlaying) {
         this.play();
-      } else {
-        this.pause();
       }
       return !this.isMasterMuted;
     }
@@ -299,7 +286,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       PROJECT_DATA = window.EMBEDDED_DATASET;
     }
-    computeDecibelMetrics();
     initApp();
   }
 
@@ -343,12 +329,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function setupSlider() {
     timeSlider.value = state.currentMinute;
     currentTimeText.textContent = formatMinute(state.currentMinute);
-    if (btnToggleJourney) {
-      btnToggleJourney.classList.add('active');
-      btnToggleJourney.textContent = 'Ver avance progresivo';
-    }
+    // duplicado limpiado
 
     timeSlider.addEventListener("input", (e) => {
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
+      // estado visual de recorrido mantenido
+      // texto mantenido
+
       const val = parseInt(e.target.value, 10);
       state.currentMinute = val;
       currentTimeText.textContent = formatMinute(val);
@@ -357,6 +345,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".moment-chip").forEach(chip => {
       chip.addEventListener("click", () => {
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
+      // estado visual de recorrido mantenido
+      // texto mantenido
+
         const val = timeToMinutes(chip.dataset.timeTarget);
         timeSlider.value = val;
         state.currentMinute = val;
@@ -367,6 +360,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tick-mark").forEach(tick => {
       tick.addEventListener("click", () => {
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
+      // estado visual de recorrido mantenido
+      // texto mantenido
+
         const val = parseInt(tick.dataset.val, 10);
         timeSlider.value = val;
         state.currentMinute = val;
@@ -487,6 +485,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function togglePlayPause() {
     state.isPlaying = !state.isPlaying;
     if (state.isPlaying) {
+      state.showFullJourney = false;
+      if (btnToggleJourney) { btnToggleJourney.classList.remove('active'); btnToggleJourney.textContent = 'Ver todo el recorrido'; }
+      // estado visual de recorrido mantenido
+      // texto mantenido
+
       playIcon.style.display = "none";
       pauseIcon.style.display = "block";
       soundEngine.play(); // Iniciar todos los sonidos al dar play a la línea del tiempo
@@ -629,7 +632,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dbTooltipVal.textContent = `${db.toFixed(1)} dB`;
     const min = item.db_min || (db - 6).toFixed(1);
     const max = item.db_max || (db + 8).toFixed(1);
-    dbTooltipRange.textContent = `Medición: ${db.toFixed(1)} dB (Mín: ${dbMetrics.min.toFixed(1)} dB · Promedio: ${dbMetrics.avg.toFixed(1)} dB · Máx: ${dbMetrics.max.toFixed(1)} dB)`;
+    dbTooltipRange.textContent = `Rango sonómetro: [Mín: ${min} dB — Máx: ${max} dB]`;
 
     const stage = document.getElementById("stage-container");
     const stageRect = stage ? stage.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
@@ -680,8 +683,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Línea Base Central Sutil
     drawCenterBaseline(ctx, w, midY, padX, minToX);
 
-    // Las ondas sonoras se despliegan en el lienzo en todo momento
-    const revealMinute = state.showFullJourney ? TIME_MAX : Math.max(state.currentMinute, TIME_MIN);
+    // Al principio no se ve; se va haciendo progresivamente mientras avanza la línea del tiempo
+    const isAtStart = !state.showFullJourney && state.currentMinute <= TIME_MIN && !state.isPlaying;
+    const revealMinute = state.showFullJourney ? TIME_MAX : (isAtStart ? TIME_MIN - 1 : state.currentMinute);
 
     const categoriesList = ["transito", "personas", "maquinarias", "naturaleza"];
     const categoryRecords = {
@@ -723,162 +727,126 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryRecords[c].sort((a, b) => a.minute - b.minute);
     });
 
-    // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
-    drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
+    if (revealMinute >= TIME_MIN) {
+      // 2. DIBUJAR ONDA INFERIOR FLUIDA DE DECIBELES MEDIDOS (Abajo)
+      drawDecibelFluidWave(ctx, midY, padX, usableW, state.animPhase, revealMinute);
 
-    // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
-    categoriesList.forEach((catKey, catIndex) => {
-      if (!state.activeCategories[catKey]) return;
-      const records = categoryRecords[catKey];
-      if (records.length === 0) return;
+      // 3. DIBUJAR UNA ONDA FLUIDA POR CADA TIPO DE SONIDO (Parte Superior)
+      categoriesList.forEach((catKey, catIndex) => {
+        if (!state.activeCategories[catKey]) return;
+        const records = categoryRecords[catKey];
+        if (records.length === 0) return;
 
-      drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
-    });
+        drawFluidSilkWave(ctx, catKey, records, midY, padX, usableW, state.animPhase, catIndex, revealMinute);
+      });
+    }
 
     // 4. CABEZAL TEMPORAL DEL SLIDER (Conecta verticalmente Percepción y Decibeles)
     drawWeavingCursor(ctx, currentCursorX, midY, h);
 
     // 5. MODULAR AUDIO PROCEDURAL DEL PAISAJE SONORO
-    if (state.isPlaying || soundEngine.isPlaying) {
+    if (state.isPlaying) {
       soundEngine.updateVolumes(state.currentMinute, state.activeCategories, categoryRecords);
     }
   }
 
-  // Métricas del conjunto de datos calculadas empíricamente
-  const dbMetrics = {
-    min: 54.0,
-    max: 78.0,
-    avg: 67.05
-  };
-
-  function computeDecibelMetrics() {
-    if (!PROJECT_DATA || !PROJECT_DATA.fichas_campo) return;
-    const dbs = PROJECT_DATA.fichas_campo
-      .map(f => Number(f.db_prom))
-      .filter(v => !isNaN(v) && v > 0);
-    if (dbs.length > 0) {
-      dbMetrics.min = Math.min(...dbs);
-      dbMetrics.max = Math.max(...dbs);
-      dbMetrics.avg = dbs.reduce((a, b) => a + b, 0) / dbs.length;
-    }
-  }
-
   // =========================================================================
-  // GENERADOR DE ONDAS TOPOGRÁFICAS PARAMÉTRICAS — EJE SUPERIOR (PERCEPCIÓN)
-  // (Estrictamente confinado sobre el eje medio midY, nunca pasa al eje inferior.
-  //  Si las personas lo perciben alto la onda es más pronunciada y abierta)
+  // GENERADOR DE ONDAS FLUIDAS CONTINUAS Y NODOS EMBEBIDOS
+  // (Las ondas siguen los nodos, suben a sus crestas y se van armando progresivamente)
   // =========================================================================
   function drawFluidSilkWave(ctx, cat, records, midY, padX, usableW, phase, catIdx, revealMinute) {
     const colorHex = getCategoryColor(cat);
     const rgb = hexToRgb(colorHex);
 
-    // Separación sutil de la línea base sobre el eje medio (siempre sobre midY)
+    // Separación vertical de las líneas base según categoría sonora
+    // Tránsito fluye arriba (Morado), Personas en la franja media-alta (Amarillo Mostaza)
     const catBaseOffsets = {
-      transito: -10,
-      personas: -8,
-      maquinarias: -6,
+      transito: -42,
+      personas: -24,
+      maquinarias: -14,
       naturaleza: -4
     };
-    const baseOffset = catBaseOffsets[cat] || -6;
-    const baseY = midY + baseOffset; // Siempre <= midY - 4
+    const baseOffset = catBaseOffsets[cat] || -20;
 
-    // 38 filamentos de contorno topográfico de alta definición
-    const numStrands = 38;
-    const numSamples = 240; // Muestreo denso para máxima fluidez orgánica
+    // 36 filamentos finos como seda líquida
+    const numStrands = 36;
+    const numSamples = 160; // Alta densidad de muestreo para máxima fluidez
 
-    // 1. Función de envolvente topográfica continua de percepción subjetiva
-    function getTopographicProfile(minute) {
+    // 1. Función unificada de envolvente que modula elevación y apertura según intensidad percibida
+    function getFluidEnvelope(minute) {
       let totalW = 0;
-      let accumCrest = 0;
-      let accumBandW = 0;
+      let accumElev = 0;
+      let accumWidth = 0;
       let accumOpenness = 0;
       let maxWeight = 0;
-      const sigma = 34; // Dispersión orgánica suave
+      const sigma = 32; // Dispersión orgánica ultra fluida
 
-      for (let i = 0; i < records.length; i++) {
-        const r = records[i];
+      for (const r of records) {
         const diff = minute - r.minute;
         const w = Math.exp(-(diff * diff) / (2 * sigma * sigma));
         totalW += w;
         if (w > maxWeight) maxWeight = w;
 
         // Modulación según intensidad percibida (calibre en mm):
-        // Alta (calibre 95): onda MUY PRONUNCIADA hacia arriba (cresta 150px, abanico amplio)
-        // Media (calibre 70): pronunciación moderada (cresta 78px)
-        // Baja (calibre 28/40): compacta y chica pegada a la base (cresta 26px)
-        let crest = 26;
-        let bandW = 12;
-        let openness = 0.12;
+        // Calibre 95 (Alta): la onda se abre ampliamente (listón ancho de filamentos)
+        // Calibre 70 (Media): apertura intermedia
+        // Calibre 40/28 (Baja): la onda se cierra ceñida (filamentos compactos y juntos)
+        let elev = 32;
+        let bandW = 10;
+        let openness = 0.08;
 
         if (r.calibre === 95) {
-          crest = 150;    // Muy pronunciada hacia arriba
-          bandW = 72;     // Gran apertura de filamentos
+          elev = 150;     // Alta = cresta alta
+          bandW = 84;     // Se abre ampliamente
           openness = 1.0;
         } else if (r.calibre === 70) {
-          crest = 78;     // Pronunciación media
-          bandW = 38;     // Apertura intermedia
-          openness = 0.50;
+          elev = 80;      // Media = elevación moderada
+          bandW = 40;     // Apertura intermedia
+          openness = 0.45;
         } else {
-          crest = 26;     // Onda baja, compacta
-          bandW = 12;
-          openness = 0.12;
+          elev = 32;      // Baja = cerca de la línea base
+          bandW = 10;     // Se cierra ceñida
+          openness = 0.08;
         }
 
-        accumCrest += crest * w;
-        accumBandW += bandW * w;
+        accumElev += elev * w;
+        accumWidth += bandW * w;
         accumOpenness += openness * w;
       }
 
-      // Si no hay registros sonoros cercanos (calma / silencio):
-      // Los filamentos se ciñen en un hilo finísimo (< 1.2px) sobre la base
       if (totalW < 0.0001) {
-        return { crest: 0, bandW: 1.2, openness: 0, maxWeight: 0 };
+        return { elevation: 16, width: 8, openness: 0.06, maxWeight: 0 };
       }
 
-      const blend = Math.min(1, maxWeight * 1.6);
-      const crest = (accumCrest / totalW) * blend;
-      const bandW = (accumBandW / totalW) * blend + 1.2 * (1 - blend);
-      const openness = (accumOpenness / totalW) * blend;
+      const avgElev = accumElev / totalW;
+      const avgWidth = accumWidth / totalW;
+      const avgOpenness = accumOpenness / totalW;
 
-      return { crest, bandW, openness, maxWeight };
+      // Fusión suave con el curso calmo y cerrado fuera de los momentos registrados
+      const blend = Math.min(1, maxWeight * 1.5);
+      const elevation = avgElev * blend + 16 * (1 - blend);
+      const width = avgWidth * blend + 8 * (1 - blend);
+      const openness = avgOpenness * blend + 0.06 * (1 - blend);
+
+      return { elevation, width, openness, maxWeight };
     }
 
-    // 2. Punto exacto de cada filamento s en el minuto m
-    // u = 0 (cresta superior más alta), u = 1 (filamento inferior sobre la línea base)
-    function getStrandPoint(s, minute, normT) {
-      const prof = getTopographicProfile(minute);
-      const u = s / (numStrands - 1); // 0 (cresta superior) a 1 (base inferior)
-      const w = 1.0 - u;              // 1 (cresta) a 0 (base)
-
-      // Distribución estratificada hacia arriba (hacia y menor)
-      const dy = -prof.crest * (0.25 * w + 0.75 * Math.pow(w, 0.85)) - (prof.bandW * 0.35) * w * (1.0 - w);
-
-      // Relieve armónico topográfico 3D (terrazas interiores)
-      // Se anula en los extremos superior (u=0) e inferior (u=1) mediante sin(u * PI)
-      const envelopeFactor = Math.sin(u * Math.PI) * prof.openness;
-      const theta1 = normT * 26 + (1 - u) * 3.6 + phase * 0.85 + catIdx * 1.4;
-      const theta2 = normT * 52 - (1 - u) * 2.1 + phase * 0.45;
-      const theta3 = normT * 13 + (1 - u) * 1.7 + phase * 1.1;
-
-      const ripple = envelopeFactor * (
-        8.5 * Math.sin(theta1) +
-        4.2 * Math.cos(theta2) +
-        5.5 * Math.sin(theta3)
-      );
-
-      // REGLA FUNDAMENTAL: NUNCA PASAR AL EJE INFERIOR (y <= midY - 3)
-      const rawY = baseY + dy + ripple;
-      const y = Math.min(midY - 3, rawY);
-
-      return { y, prof };
+    // 2. Función unificada para calcular la posición exacta del espinazo central de la onda
+    function getSpineAt(normT, minute) {
+      const env = getFluidEnvelope(minute);
+      // Ondulación armónica base compartida suavemente por toda la onda
+      const harmonicMotion = Math.sin(normT * 12 - phase * 1.1 + catIdx * 1.3) * (6 + env.openness * 8);
+      const spineY = midY + baseOffset - env.elevation + harmonicMotion;
+      return { spineY, env };
     }
 
-    // 3. Dibujar todos los filamentos topográficos con trazo definido y nítido
+    // 3. Dibujar todos los filamentos de seda que componen la onda fluida progresiva
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
 
     for (let s = 0; s < numStrands; s++) {
-      const u = s / (numStrands - 1);
+      const strandNorm = (s / (numStrands - 1)) - 0.5; // [-0.5 (arriba), +0.5 (abajo)]
+      const strandPhase = s * 0.18 + phase * 0.75 + catIdx * 1.25;
 
       ctx.beginPath();
       let isFirst = true;
@@ -887,61 +855,53 @@ document.addEventListener("DOMContentLoaded", () => {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
 
-        if (revealMinute < TIME_MAX && minute >= revealMinute) {
-          // Conectar en punta afilada (needle pinch) exactamente en el cabezal temporal
+        if (minute > revealMinute) {
+          // Conectar el filamento exactamente al cabezal temporal
           const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
           const tipX = padX + tipTNorm * usableW;
-          const spineTip = getStrandPoint(Math.floor(numStrands * 0.6), revealMinute, tipTNorm);
+          const { spineY, env } = getSpineAt(tipTNorm, revealMinute);
+          const strandFlutter = Math.sin(tipTNorm * 22 + strandPhase) * (env.openness * 5.5);
+          const strandY = spineY + (strandNorm * env.width) + strandFlutter;
           if (isFirst) {
-            ctx.moveTo(tipX, spineTip.y);
+            ctx.moveTo(tipX, strandY);
             isFirst = false;
           } else {
-            ctx.lineTo(tipX, spineTip.y);
+            ctx.lineTo(tipX, strandY);
           }
           break;
         }
 
         const x = padX + tNorm * usableW;
-        let { y } = getStrandPoint(s, minute, tNorm);
-
-        // Aguzar la punta que avanza en los últimos minutos antes del cabezal
-        if (revealMinute < TIME_MAX && revealMinute - minute < 12) {
-          const spinePoint = getStrandPoint(Math.floor(numStrands * 0.6), minute, tNorm);
-          const pinchFactor = Math.max(0, (revealMinute - minute) / 12);
-          y = spinePoint.y + (y - spinePoint.y) * pinchFactor;
-        }
-
-        // Seguridad absoluta de eje superior
-        y = Math.min(midY - 3, y);
+        const { spineY, env } = getSpineAt(tNorm, minute);
+        const strandFlutter = Math.sin(tNorm * 22 + strandPhase) * (env.openness * 5.5);
+        const strandY = spineY + (strandNorm * env.width) + strandFlutter;
 
         if (isFirst) {
-          ctx.moveTo(x, y);
+          ctx.moveTo(x, strandY);
           isFirst = false;
         } else {
-          ctx.lineTo(x, y);
+          ctx.lineTo(x, strandY);
         }
       }
-
-      // Definición nítida y vibrante en el color respectivo de la categoría
-      const strandAlpha = 0.50 + 0.36 * Math.sin(u * Math.PI);
-      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${strandAlpha.toFixed(3)})`;
-      ctx.lineWidth = 1.15;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      // alpha asignado
+      ctx.lineWidth = 1.05;
       ctx.stroke();
     }
 
     ctx.restore();
 
-    // 4. DIBUJAR LOS NODOS EN LAS CRESTAS DE LAS MONTAÑAS SONORAS (Apex superior)
+    // 4. DIBUJAR LOS NODOS EN LAS CRESTAS
+    // Los nodos aparecen a medida que la onda los alcanza cronológicamente
     records.forEach(rec => {
-      if (revealMinute < TIME_MAX && rec.minute > revealMinute) return;
+      if (rec.minute > revealMinute) return; // Aparecen de a poco con el avance temporal
 
       const normT = (rec.minute - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
 
-      // Ubicar el nodo en la cresta superior (u = 0)
-      const { y: nodeY } = getStrandPoint(0, rec.minute, normT);
+      // Calcular el espinazo usando exactamente la misma función de la onda
+      const { spineY } = getSpineAt(normT, rec.minute);
 
       let intensityLevel = "Baja";
       let nodeR = 4.8;
@@ -958,7 +918,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderedNodes.push({
         x,
-        y: nodeY,
+        y: spineY,
         radius: nodeR,
         data: rec.data,
         isEncuesta: rec.isEncuesta,
@@ -966,106 +926,47 @@ document.addEventListener("DOMContentLoaded", () => {
         category: cat
       });
 
-      drawFilamentNode(ctx, x, nodeY, nodeR, colorHex, isHovered, isCurrent);
+      drawFilamentNode(ctx, x, spineY, nodeR, colorHex, isHovered, isCurrent);
     });
   }
 
   // =========================================================================
-  // ONDA INFERIOR DE DECIBELES MEDIDOS — EJE INFERIOR
-  // (Estrictamente confinada bajo midY, nunca pasa al eje superior.
-  //  Escalada según el rango empírico [Mín: 54 dB, Promedio: 67 dB, Máx: 78 dB].
-  //  Si el decibel registrado es el más bajo la onda es más chica;
-  //  si es alto profundiza en un cañón acústico pronunciado)
+  // ONDA INFERIOR DE DECIBELES MEDIDOS (Fluida hacia abajo)
   // =========================================================================
   function drawDecibelFluidWave(ctx, midY, padX, usableW, phase, revealMinute) {
     if (!PROJECT_DATA) return;
     const records = PROJECT_DATA.fichas_campo;
 
-    const numStrands = 36;
-    const numSamples = 240;
+    const numStrands = 32;
+    const numSamples = 160;
     const rgb = { r: 220, g: 38, b: 38 }; // Rojo Acústico Decibeles (#DC2626)
-    const baseY = midY + 6; // Siempre >= midY + 4
 
-    // Métricas del conjunto de datos: Mínimo 54 dB, Punto Medio / Promedio ~67 dB, Máximo 78 dB
-    const minDbVal = dbMetrics.min || 54.0;
-    const maxDbVal = dbMetrics.max || 78.0;
-
-    // 1. Función de perfil de profundidad acústica continua
-    function getDbTopographicProfile(minute) {
+    function getFluidDbDepth(minute) {
       let totalW = 0;
       let accumDepth = 0;
-      let accumBandW = 0;
-      let accumOpenness = 0;
-      let maxWeight = 0;
       const sigma = 35;
 
-      for (let i = 0; i < records.length; i++) {
-        const r = records[i];
+      for (const r of records) {
         const diff = minute - timeToMinutes(r.hora);
         const w = Math.exp(-(diff * diff) / (2 * sigma * sigma));
         totalW += w;
-        if (w > maxWeight) maxWeight = w;
 
         const db = r.db_prom || 60;
-        // Normalización exacta contra el rango empírico [minDbVal (54 dB) a maxDbVal (78 dB)]
-        const normDb = Math.max(0, Math.min(1, (db - minDbVal) / (maxDbVal - minDbVal)));
-
-        // Si el decibel es el más bajo (54 dB, normDb = 0), la onda es MÁS CHICA (apenas 12px)
-        // En el punto medio (67 dB, normDb ~ 0.54), profundidad moderada (~75px)
-        // En el más alto (78 dB, normDb = 1.0), onda profunda y pronunciada (~150px)
-        const depth = 12 + normDb * 138;
-        const bandW = 8 + normDb * 70;
-        const openness = 0.05 + normDb * 0.95;
-
+        const clamped = Math.max(48, Math.min(122, db));
+        const depth = 28 + ((clamped - 48) / (122 - 48)) * 165;
         accumDepth += depth * w;
-        accumBandW += bandW * w;
-        accumOpenness += openness * w;
       }
 
-      if (totalW < 0.0001) {
-        return { depth: 10, bandW: 1.2, openness: 0, maxWeight: 0 };
-      }
-
-      const blend = Math.min(1, maxWeight * 1.5);
-      const depth = (accumDepth / totalW) * blend + 10 * (1 - blend);
-      const bandW = (accumBandW / totalW) * blend + 1.2 * (1 - blend);
-      const openness = (accumOpenness / totalW) * blend;
-
-      return { depth, bandW, openness, maxWeight };
+      if (totalW < 0.04) return 30;
+      return accumDepth / totalW;
     }
 
-    // 2. Punto exacto de cada filamento acústico s
-    // u = 0 (línea superior cerca de la base), u = 1 (fondo del cañón acústico hacia abajo)
-    function getDbStrandPoint(s, minute, normT) {
-      const prof = getDbTopographicProfile(minute);
-      const u = s / (numStrands - 1); // 0 (arriba cerca de base) a 1 (abajo cañón)
-
-      // Distribución estratificada hacia abajo (hacia y mayor)
-      const dy = +prof.depth * (0.25 * u + 0.75 * Math.pow(u, 0.85)) + (prof.bandW * 0.35) * u * (1.0 - u);
-
-      // Relieve armónico topográfico 3D
-      const envelopeFactor = Math.sin(u * Math.PI) * prof.openness;
-      const theta1 = normT * 24 + u * 3.4 - phase * 0.75;
-      const theta2 = normT * 48 - u * 2.0 + phase * 0.45;
-
-      const ripple = envelopeFactor * (
-        8.0 * Math.sin(theta1) +
-        4.5 * Math.cos(theta2)
-      );
-
-      // REGLA FUNDAMENTAL: NUNCA PASAR AL EJE SUPERIOR (y >= midY + 3)
-      const rawY = baseY + dy + ripple;
-      const y = Math.max(midY + 3, rawY);
-
-      return { y, prof };
-    }
-
-    // 3. Dibujar todos los filamentos topográficos rojos nítidos
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
 
     for (let s = 0; s < numStrands; s++) {
-      const u = s / (numStrands - 1);
+      const strandNorm = (s / (numStrands - 1)) - 0.5;
+      const strandPhase = s * 0.18 + phase * 0.7;
 
       ctx.beginPath();
       let isFirst = true;
@@ -1074,30 +975,28 @@ document.addEventListener("DOMContentLoaded", () => {
         const tNorm = p / numSamples;
         const minute = TIME_MIN + tNorm * (TIME_MAX - TIME_MIN);
 
-        if (revealMinute < TIME_MAX && minute >= revealMinute) {
+        if (minute > revealMinute) {
+          // Conectar el filamento exactamente al cabezal temporal inferior
           const tipTNorm = Math.min(1, Math.max(0, (revealMinute - TIME_MIN) / (TIME_MAX - TIME_MIN)));
           const tipX = padX + tipTNorm * usableW;
-          const spineTip = getDbStrandPoint(Math.floor(numStrands * 0.4), revealMinute, tipTNorm);
+          const depth = getFluidDbDepth(revealMinute);
+          const fluidWave = Math.sin(tipTNorm * 12 - phase + strandPhase) * 10 +
+                            Math.cos(tipTNorm * 22 + strandPhase * 0.6) * 5;
+          const tipY = midY + depth + (strandNorm * (depth * 0.35)) + fluidWave;
           if (isFirst) {
-            ctx.moveTo(tipX, spineTip.y);
+            ctx.moveTo(tipX, tipY);
             isFirst = false;
           } else {
-            ctx.lineTo(tipX, spineTip.y);
+            ctx.lineTo(tipX, tipY);
           }
           break;
         }
 
         const x = padX + tNorm * usableW;
-        let { y } = getDbStrandPoint(s, minute, tNorm);
-
-        if (revealMinute < TIME_MAX && revealMinute - minute < 12) {
-          const spinePoint = getDbStrandPoint(Math.floor(numStrands * 0.4), minute, tNorm);
-          const pinchFactor = Math.max(0, (revealMinute - minute) / 12);
-          y = spinePoint.y + (y - spinePoint.y) * pinchFactor;
-        }
-
-        // Seguridad absoluta de eje inferior
-        y = Math.max(midY + 3, y);
+        const depth = getFluidDbDepth(minute);
+        const fluidWave = Math.sin(tNorm * 12 - phase + strandPhase) * 10 +
+                          Math.cos(tNorm * 22 + strandPhase * 0.6) * 5;
+        const y = midY + depth + (strandNorm * (depth * 0.35)) + fluidWave;
 
         if (isFirst) {
           ctx.moveTo(x, y);
@@ -1106,18 +1005,16 @@ document.addEventListener("DOMContentLoaded", () => {
           ctx.lineTo(x, y);
         }
       }
-
-      const strandAlpha = 0.50 + 0.36 * Math.sin(u * Math.PI);
-      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${strandAlpha.toFixed(3)})`;
-      ctx.lineWidth = 1.15;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      const alpha = 0.20 + (1 - Math.abs(strandNorm * 2)) * 0.35;
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      ctx.lineWidth = 1.05;
       ctx.stroke();
     }
 
     ctx.restore();
 
-    // 4. DIBUJAR NODOS Y ETIQUETAS DE DECIBELES (1 CADA 3 POR LUGAR E INTERCALADOS VERTICALMENTE)
+    // DIBUJAR NODOS Y ETIQUETAS DE DECIBELES (1 CADA 3 POR LUGAR E INTERCALADOS VERTICALMENTE)
+    // 1. Filtrar 1 cada 3 registros por sector para evitar saturación y superposición
     const sectorIndices = {};
     const sampledRecords = [];
 
@@ -1130,6 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sectorIndices[sec]++;
     });
 
+    // Ordenar cronológicamente
     sampledRecords.sort((a, b) => timeToMinutes(a.hora) - timeToMinutes(b.hora));
 
     let lastLabelX = -999;
@@ -1137,15 +1035,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     sampledRecords.forEach(r => {
       const m = timeToMinutes(r.hora);
-      if (revealMinute < TIME_MAX && m > revealMinute) return;
+      if (m > revealMinute) return;
 
       const normT = (m - TIME_MIN) / (TIME_MAX - TIME_MIN);
       const x = padX + normT * usableW;
-      // Posición del nodo en el fondo del cañón acústico (u = 1)
-      const { y } = getDbStrandPoint(numStrands - 1, m, normT);
+      const depth = getFluidDbDepth(m);
+      const y = midY + depth;
 
+      // Garantizar que no colisionen horizontalmente (mínimo 38px entre marcas)
       if (x - lastLabelX < 38) {
-        return;
+        return; // Omitir si queda demasiado pegado a otra medición
       }
       lastLabelX = x;
       staggerToggle = !staggerToggle;
@@ -1165,7 +1064,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const r = isHovered ? 6.5 : (isCurrent ? 5.6 : 4.8);
 
-      // Nodo sólido de decibeles (sin borde transparente ni halo)
+      // Centro sólido del nodo de decibeles (sin halo acústico transparente)
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = isHovered ? "#991B1B" : "#DC2626";
@@ -1182,6 +1081,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const isStaggered = staggerToggle;
       const labelYOffset = isStaggered ? 26 : 15;
 
+      // Línea guía tenue para etiquetas intercaladas inferiores
       if (isStaggered) {
         ctx.beginPath();
         ctx.moveTo(x, y + 6);
@@ -1191,6 +1091,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.stroke();
       }
 
+      // Pastilla de texto de decibeles medidos (limpia, nítida y legible)
       const dbVal = r.db_prom || 60;
       ctx.font = `800 10.5px 'Merriweather Sans', sans-serif`;
       ctx.textAlign = "center";
@@ -1201,6 +1102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // =========================================================================
   // NODOS DE INTERACCIÓN
   // =========================================================================
   function drawFilamentNode(ctx, x, y, radius, hexColor, isHovered, isCurrent) {
