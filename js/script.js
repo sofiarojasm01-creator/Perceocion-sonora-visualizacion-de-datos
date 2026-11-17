@@ -66,41 +66,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const soundEngine = {
     isInitialized: false,
     isMasterMuted: false,
-    masterVolume: 0.38, // Nivel global suave y equilibrado para disfrute continuo
-    hasUserStarted: false,
+    masterVolume: 0.92, // Nivel global claro y audible para que todos los sonidos se distingan con nitidez
+    isPlaying: false,
 
     tracks: {
       transito: {
         id: "audio-transito",
         src: "assets/sonidos/video transito.mp3",
         audio: null,
-        baseWeight: 0.28, // Tránsito: micros, autos y rodado sobre adoquín
-        currentVol: 0.28,
-        targetVol: 0.28
+        baseWeight: 0.65, // Tránsito: micros, aceleraciones, frenos y rodado sobre adoquín
+        currentVol: 0.65,
+        targetVol: 0.65
       },
       personas: {
         id: "audio-personas",
         src: "assets/sonidos/video personas sonido.mp3",
         audio: null,
-        baseWeight: 0.25, // Personas: charlas callejeras, pregones y voces
-        currentVol: 0.25,
-        targetVol: 0.25
+        baseWeight: 0.62, // Personas: bullicio, charlas callejeras, pregones y voces
+        currentVol: 0.62,
+        targetVol: 0.62
       },
       maquinarias: {
         id: "audio-maquinarias",
         src: "assets/sonidos/video maquinarias.mp3",
         audio: null,
-        baseWeight: 0.20, // Maquinarias: motores marinos y actividad portuaria
-        currentVol: 0.20,
-        targetVol: 0.20
+        baseWeight: 0.60, // Maquinarias: motores diésel marinos, grúas y actividad portuaria
+        currentVol: 0.60,
+        targetVol: 0.60
       },
       naturaleza: {
         id: "audio-naturaleza",
         src: "assets/sonidos/video naturaleza.mp3",
         audio: null,
-        baseWeight: 0.22, // Naturaleza: oleaje del mar Pacífico y viento costero más presente y claro
-        currentVol: 0.22,
-        targetVol: 0.22
+        baseWeight: 0.58, // Naturaleza: oleaje del Pacífico, gaviotas y brisa marina
+        currentVol: 0.58,
+        targetVol: 0.58
       }
     },
 
@@ -116,14 +116,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         el.loop = true;
         el.preload = "auto";
-        // Asignar volumen audible desde el inicio para que suenen todos al arrancar
         const initVol = Math.max(0, Math.min(1, item.baseWeight * this.masterVolume));
         el.volume = initVol;
         item.currentVol = item.baseWeight;
         item.targetVol = item.baseWeight;
         item.audio = el;
 
-        // Reinicio automático en bucle continuo sin cortes
         el.addEventListener("ended", () => {
           el.currentTime = 0;
           el.play().catch(() => {});
@@ -139,7 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       this.isPlaying = true;
 
-      // Iniciar reproducción simultánea de todas las pistas de audio
       for (const cat in this.tracks) {
         const item = this.tracks[cat];
         if (item.audio) {
@@ -170,51 +167,86 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const categories = ["transito", "personas", "maquinarias", "naturaleza"];
+      const amplitudes = {};
+      let anyHighIntensity = false;
+      const sigma = 34.0; // Coincide exactamente con la dispersión de las ondas visuales
 
+      // 1. Calcular en tiempo real la altura de onda / intensidad de cada categoría
+      categories.forEach(cat => {
+        if (!activeCategories[cat] || this.isMasterMuted) {
+          amplitudes[cat] = 0;
+          return;
+        }
+
+        const recs = (recordsByCategory && recordsByCategory[cat]) || [];
+        let totalW = 0;
+        let accumCrest = 0;
+        let maxW = 0;
+
+        for (let i = 0; i < recs.length; i++) {
+          const r = recs[i];
+          const diff = currentMinute - r.minute;
+          const w = Math.exp(-(diff * diff) / (2 * sigma * sigma));
+          totalW += w;
+          if (w > maxW) maxW = w;
+
+          let crest = 26;
+          if (r.calibre === 95) crest = 150;
+          else if (r.calibre === 70) crest = 78;
+          else crest = 26;
+
+          accumCrest += crest * w;
+        }
+
+        if (totalW < 0.0001) {
+          amplitudes[cat] = 0;
+        } else {
+          const blend = Math.min(1, maxW * 1.6);
+          const h = (accumCrest / totalW) * blend;
+          amplitudes[cat] = h;
+          if (h >= 85) { // Onda grande (intensidad alta)
+            anyHighIntensity = true;
+          }
+        }
+      });
+
+      // 2. Asignar volumen dinámico con jerarquía acústica:
+      // Si una categoría (ej. Tránsito) tiene onda grande por intensidad alta,
+      // se escucha MUCHO MÁS por encima de las otras, atenuando a las demás.
       categories.forEach(cat => {
         const item = this.tracks[cat];
         if (!item || !item.audio) return;
 
-        // Si la categoría fue silenciada en el filtro superior o el botón general está silenciado:
         if (!activeCategories[cat] || this.isMasterMuted) {
           item.targetVol = 0.0;
         } else {
-          // Modulación guiada por la presencia e intensidad de datos en ese horario
-          const recs = (recordsByCategory && recordsByCategory[cat]) || [];
-          let maxCalibre = 0;
-          let nearbyCount = 0;
+          const h = amplitudes[cat] || 0;
+          const isHighWave = (h >= 85);
 
-          for (const r of recs) {
-            const diff = Math.abs(currentMinute - r.minute);
-            if (diff <= 40) {
-              nearbyCount++;
-              if (r.calibre > maxCalibre) maxCalibre = r.calibre;
-            }
-          }
-
-          // Factor de intensidad según el calibre de percepción ciudadana
-          let intensityFactor = 0.90; // Presencia basal viva
-          if (nearbyCount > 0) {
-            if (maxCalibre === 95) {
-              intensityFactor = 1.30; // Nivel Alto (picos de flujo vial o encuentros masivos)
-            } else if (maxCalibre === 70) {
-              intensityFactor = 1.10; // Nivel Medio
+          if (anyHighIntensity) {
+            // Hay al menos una categoría con onda grande dominante
+            if (isHighWave) {
+              // Categoría con onda grande: volumen MÁXIMO protagonista en primer plano
+              item.targetVol = 0.96;
             } else {
-              intensityFactor = 0.95; // Nivel Bajo
+              // Las demás categorías se atenúan a segundo plano para que la onda dominante destaque claramente
+              const relativeShare = Math.min(1, h / 85);
+              item.targetVol = 0.16 + relativeShare * 0.14; // entre 0.16 y 0.30
             }
-          }
-
-          // Naturaleza con mayor presencia y protagonismo auditivo costero
-          if (cat === "naturaleza") {
-            const oceanPresence = nearbyCount > 0 ? 0.26 : 0.20;
-            item.targetVol = oceanPresence;
           } else {
-            item.targetVol = Math.min(0.38, Math.max(0.10, item.baseWeight * intensityFactor));
+            // Ninguna categoría tiene onda grande: mezcla rica y balanceada donde todos se diferencian
+            if (h >= 45) {
+              item.targetVol = 0.72; // Onda media (calibre 70)
+            } else if (h >= 15) {
+              item.targetVol = 0.52; // Onda baja (calibre 28/40)
+            } else {
+              item.targetVol = (cat === "naturaleza") ? 0.42 : 0.32; // Presencia ambiental basal
+            }
           }
         }
 
-        // Interpolación fluida (fade orgánico entre frames)
-        const ease = 0.08;
+        // Interpolación fluida (fade orgánico entre frames para evitar cortes abruptos)
+        const ease = 0.10;
         item.currentVol += (item.targetVol - item.currentVol) * ease;
         const actualVol = Math.max(0, Math.min(1, item.currentVol * this.masterVolume));
 
@@ -230,8 +262,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       this.isMasterMuted = !this.isMasterMuted;
 
-      if (!this.isMasterMuted && state && state.isPlaying) {
+      if (!this.isMasterMuted) {
         this.play();
+      } else {
+        this.pause();
       }
       return !this.isMasterMuted;
     }
@@ -726,7 +760,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawWeavingCursor(ctx, currentCursorX, midY, h);
 
     // 5. MODULAR AUDIO PROCEDURAL DEL PAISAJE SONORO
-    if (state.isPlaying) {
+    if (state.isPlaying || soundEngine.isPlaying) {
       soundEngine.updateVolumes(state.currentMinute, state.activeCategories, categoryRecords);
     }
   }
