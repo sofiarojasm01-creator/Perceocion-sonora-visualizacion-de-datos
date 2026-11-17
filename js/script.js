@@ -964,13 +964,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const { y: nodeY } = getStrandPoint(0, rec.minute, normT);
 
       let intensityLevel = "Baja";
-      let nodeR = 6;
+      let nodeR = 4.8;
       if (rec.calibre === 95) {
         intensityLevel = "Alta";
-        nodeR = 9.5;
+        nodeR = 5.8;
       } else if (rec.calibre === 70) {
         intensityLevel = "Media";
-        nodeR = 7.5;
+        nodeR = 5.2;
       }
 
       const isHovered = state.hoveredNode && state.hoveredNode.data === rec.data;
@@ -1183,20 +1183,17 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
 
-      // Halo acústico
-      ctx.beginPath();
-      ctx.arc(x, y, isHovered ? 13 : 8.5, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isHovered ? 0.38 : 0.16})`;
-      ctx.fill();
+      const r = isHovered ? 6.5 : (isCurrent ? 5.6 : 4.8);
 
-      // Centro del nodo
+      // Nodo sólido de decibeles (sin borde transparente ni halo)
       ctx.beginPath();
-      ctx.arc(x, y, isHovered ? 6.5 : 4.8, 0, Math.PI * 2);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = isHovered ? "#991B1B" : "#DC2626";
       ctx.fill();
 
+      // Borde blanco delgado
       ctx.beginPath();
-      ctx.arc(x, y, isHovered ? 6.5 : 4.8, 0, Math.PI * 2);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.strokeStyle = "#FFFFFF";
       ctx.lineWidth = 1.4;
       ctx.stroke();
@@ -1227,41 +1224,23 @@ document.addEventListener("DOMContentLoaded", () => {
   // NODOS DE INTERACCIÓN
   // =========================================================================
   function drawFilamentNode(ctx, x, y, radius, hexColor, isHovered, isCurrent) {
-    const rgb = hexToRgb(hexColor);
-    const r = isHovered ? radius * 1.4 : (isCurrent ? radius * 1.2 : radius);
+    const r = isHovered ? radius * 1.35 : (isCurrent ? radius * 1.18 : radius);
 
     ctx.save();
     ctx.globalCompositeOperation = "source-over";
 
-    // Halo
-    ctx.beginPath();
-    ctx.arc(x, y, r * 2.1, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isHovered ? 0.35 : 0.15})`;
-    ctx.fill();
-
-    // Núcleo
+    // Nodo sólido con el color de la categoría (sin borde transparente ni punto blanco al centro)
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = hexColor;
-    if (isHovered || isCurrent) {
-      ctx.shadowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.7)`;
-      ctx.shadowBlur = 10;
-    }
     ctx.fill();
-    ctx.shadowBlur = 0;
 
-    // Anillo de brillo
+    // Borde blanco delgado y nítido
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.strokeStyle = "#FFFFFF";
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.4;
     ctx.stroke();
-
-    // Reflejo líquido
-    ctx.beginPath();
-    ctx.arc(x - r * 0.3, y - r * 0.3, Math.max(1.2, r * 0.28), 0, Math.PI * 2);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
 
     ctx.restore();
   }
