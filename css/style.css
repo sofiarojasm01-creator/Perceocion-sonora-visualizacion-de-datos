@@ -113,7 +113,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.6rem;
+  gap: 2.2rem;
   animation: fadeInIntro 1.1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
